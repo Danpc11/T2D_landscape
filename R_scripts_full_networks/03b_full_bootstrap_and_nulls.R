@@ -13,7 +13,7 @@
 #              practicamente denso -> distances() = horas.
 #              Con top-5% de aristas: grafo esparso, distances() en segundos.
 #
-#   [OPT-GBAR] Gbar con eigendescomposicion truncada via RSpectra (k=50).
+#   [FIX-Gbar-exact] Gbar con eigen completo (la truncacion tenia 30-50% de error).
 #              expm() completo es O(p^3) -> inviable 300 veces en bootstrap.
 #              Con k=50 eigenpares el error es <3% y el speedup es >100x.
 #              k=50 es suficiente para detectar diferencias en bootstrap;
@@ -60,7 +60,7 @@ if (HAS_DORNG) {
 # RSpectra para Gbar y Rbar truncados
 HAS_RSPECTRA <- requireNamespace("RSpectra", quietly = TRUE)
 if (HAS_RSPECTRA) {
-  message("RSpectra disponible: Gbar/Rbar truncados activados.")
+  message("RSpectra disponible (solo Rbar si p > 3000; Gbar siempre exacto).")
 } else {
   message("RSpectra no disponible: usando eigen() base (mas lento para p>3000).")
 }
@@ -109,8 +109,8 @@ state_orders <- list(
   GSE27951 = c("NGT",  "IGT", "T2D")
 )
 
-n_boot <- 100L    # bootstrap: 100 iteraciones
-n_perm <- 1000L   # permutaciones: 1000 (p_min = 0.001, aceptable para publicacion)
+n_boot <- as.integer(Sys.getenv("N_BOOT", unset = "100"))    # bootstrap: 100 iteraciones
+n_perm <- as.integer(Sys.getenv("N_PERM", unset = "1000"))   # permutaciones: 1000 (p_min = 0.001, aceptable para publicacion)
 message("Bootstrap: ", n_boot, " iter | Permutaciones: ", n_perm, " iter")
 
 # =============================================================================
