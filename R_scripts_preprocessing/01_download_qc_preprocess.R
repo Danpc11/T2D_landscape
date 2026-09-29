@@ -272,7 +272,15 @@ global_cutoff <- quantile(pooled_var, 0.5, na.rm = TRUE)
 message("Global variance cutoff (Q50): ", round(global_cutoff, 4))
 
 hv_genes <- common_genes[pooled_var >= global_cutoff]
-message("High-variance common genes: ", length(hv_genes))
+# [FIX-order] Ordenar por varianza DESCENDENTE. Antes el vector quedaba en orden
+# alfabetico (herencia de split()/intersect()), y los scripts 02/03 tomaban
+# hv_genes[1:800] => la "subred de alta varianza" eran los genes A-C.
+hv_genes <- names(sort(pooled_var[hv_genes], decreasing = TRUE))
+message("High-variance common genes: ", length(hv_genes),
+        " (ordenados por varianza media descendente)")
+if (length(common_genes) < 3000L)
+  warning("Solo ", length(common_genes), " genes comunes. Revisa la anotacion ",
+          "(probablemente el CDF custom de GSE18732 no mapeo a simbolos).")
 saveRDS(hv_genes, "data/processed/high_variance_genes.rds")
 fwrite(data.frame(gene = hv_genes, mean_var = pooled_var[hv_genes]),
        "results/qc/high_variance_genes_global.tsv", sep = "\t")
@@ -302,5 +310,33 @@ message("  RESUMEN FINAL: MUESTRAS POR CONDICIÓN Y DATASET")
 message("=================================================")
 print(as.data.frame(final_summary), row.names = FALSE)
 message("=================================================\n")
+
+# -----------------------------------------------------------------------------
+# [NEW] Validacion de conteos contra los esperados (README) y exportacion
+#       en texto plano para el analisis de coherencia (haz celular, python/).
+# -----------------------------------------------------------------------------
+expected_n <- c(GSE76895 = 83L, GSE18732 = 118L, GSE15653 = 18L, GSE27951 = 33L)
+for (acc in targets) {
+  n_obs <- sum(final_summary$n[final_summary$accession == acc])
+  if (!is.na(expected_n[acc]) && n_obs != expected_n[acc])
+    warning(acc, ": ", n_obs, " muestras mapeadas, esperadas ", expected_n[acc],
+            ". Revisa map_conditions() y results/qc/", acc, "_pheno.tsv")
+  if (any(is.na(raw_list[[acc]]$pheno$condition)))
+    warning(acc, ": hay muestras con condition=NA")
+}
+
+dir.create("export_sheaf", showWarnings = FALSE)
+for (acc in targets) {
+  obj <- raw_list[[acc]]
+  expr_hv <- obj$expr[hv_genes, , drop = FALSE]
+  fwrite(data.table::data.table(gene = rownames(expr_hv), expr_hv),
+         file.path("export_sheaf", paste0(acc, "_expr.tsv")), sep = "\t")
+  fwrite(obj$pheno[, c(".sample_id", "condition")],
+         file.path("export_sheaf", paste0(acc, "_pheno.tsv")), sep = "\t")
+}
+fwrite(data.frame(gene = hv_genes, mean_var = pooled_var[hv_genes]),
+       "export_sheaf/high_variance_genes_ordered.tsv", sep = "\t")
+file.copy("results/qc/dataset_summary_all.tsv", "export_sheaf/", overwrite = TRUE)
+message("Exportado export_sheaf/ para python/sheaf_coherence.py")
 
 message("Done.")
