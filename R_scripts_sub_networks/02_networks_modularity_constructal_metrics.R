@@ -14,7 +14,11 @@
 #   [C7]  find_modules maximiza n_mod * Q (modularidad Newman) en lugar de solo
 #         n_mod. Fallback a corte mediano si ningun corte produce modulos validos.
 #   [C8]  Orden fisiologico en archivos de salida.
-#   [FIX-Rbar]  Rbar = 2*tr(L+)/p. Version anterior usaba /(p-1) -> error x p.
+#   [FIX-Rbar-v2] Rbar = 2*tr(L+)/(p-1) (media de R_ij por par; Kirchhoff Kf = p*tr(L+)).
+#   [FIX-EG]      EG = media de 1/d_ij sobre pares (se elimino un *2 espurio).
+#   [FIX-beta-dataset] beta unico por dataset (estado sano).
+#   [FIX-subset]  bicor solo sobre la subred fija (antes: 5000 genes y recorte).
+#   [NEW] metricas a n igual (submuestreo) y relativas al nulo de configuracion.
 #   [FIX-match] match(states, condition) en lugar del match invertido anterior.
 # =============================================================================
 
@@ -50,26 +54,43 @@ state_orders <- list(
 # Network functions
 # -----------------------------------------------------------------------------
 
-compute_adjacency <- function(expr, cor_method = "bicor") {
-  expr_t  <- t(expr)
-  sft     <- pickSoftThreshold(expr_t, dataIsExpr = TRUE, corFnc = cor_method,
-                               powerVector = 1:20, verbose = 0)
-  beta    <- sft$powerEstimate
+# [FIX-beta-dataset] beta se estima UNA vez por dataset (estado sano) y se
+# reutiliza en todos los estados. Con beta distinto por estado, W cambia de
+# escala y las metricas comparan beta, no biologia.
+pick_beta <- function(expr, cor_method = "bicor") {
+  expr_t <- t(expr)
+  sft    <- pickSoftThreshold(expr_t, dataIsExpr = TRUE, corFnc = cor_method,
+                              corOptions = "use = 'p', maxPOutliers = 0.1",
+                              powerVector = 1:20, RsquaredCut = 0.80, verbose = 0)
+  beta <- sft$powerEstimate
   if (is.na(beta)) {
     fit       <- sft$fitIndices
     candidate <- fit$Power[fit$SFT.R.sq >= 0.80]
     beta      <- if (length(candidate) > 0) min(candidate) else 6L
   }
-  cor_mat <- if (cor_method == "bicor") {
-    bicor(expr_t, maxPOutliers = 0.1)
-  } else {
-    cor(expr_t, method = "pearson")
-  }
+  beta
+}
+
+compute_adjacency <- function(expr, beta, cor_method = "bicor") {
+  expr_t  <- t(expr)
+  cor_mat <- if (cor_method == "bicor") bicor(expr_t, maxPOutliers = 0.1)
+             else cor(expr_t, method = "pearson")
   cor_mat[is.na(cor_mat)] <- 0
-  adj             <- abs(cor_mat)^beta
-  diag(adj)       <- 0
-  rownames(adj)   <- colnames(adj) <- rownames(expr)
-  list(adj = adj, beta = beta, sft = sft)
+  adj           <- abs(cor_mat)^beta
+  diag(adj)     <- 0
+  rownames(adj) <- colnames(adj) <- rownames(expr)
+  list(adj = adj, beta = beta)
+}
+
+# [NEW] Nulo de configuracion (Chung-Lu ponderado): misma secuencia de fuerzas,
+# sin estructura. Las metricas se reportan tambien RELATIVAS a este nulo para
+# separar estructura de densidad.
+configuration_null <- function(W) {
+  k  <- rowSums(W); m2 <- sum(k)
+  W0 <- outer(k, k) / m2
+  diag(W0) <- 0
+  # reescalar para conservar exactamente la suma de pesos
+  W0 * (sum(W) / sum(W0))
 }
 
 # [C7] Seleccion de corte maximizando n_mod * Q (no solo n_mod)
@@ -116,7 +137,7 @@ find_modules <- function(W, min_size = 20L) {
 
 # -----------------------------------------------------------------------------
 # Metricas constructales
-# [FIX-Rbar] Rbar = 2*tr(L+)/p  (antes /(p-1) -> sobreestimacion por factor p)
+# [FIX-Rbar-v2] Rbar = 2*tr(L+)/(p-1): media de la resistencia efectiva por par
 # -----------------------------------------------------------------------------
 
 compute_strength_entropy <- function(W) {
@@ -131,7 +152,7 @@ compute_global_efficiency <- function(W) {
   D    <- distances(g, weights = 1 / (E(g)$weight + 1e-6))
   invD <- 1 / D
   diag(invD) <- NA_real_
-  mean(invD[upper.tri(invD)], na.rm = TRUE) * 2
+  mean(invD[upper.tri(invD)], na.rm = TRUE)
 }
 
 compute_communicability <- function(W) {
@@ -149,7 +170,7 @@ compute_avg_effective_resistance <- function(W) {
   tol      <- max(abs(eig$values)) * p * 1e-10
   inv_vals <- ifelse(eig$values > tol, 1 / eig$values, 0)
   Lplus    <- eig$vectors %*% diag(inv_vals, p) %*% t(eig$vectors)
-  as.numeric(2 * sum(diag(Lplus)) / p)   # [FIX-Rbar]
+  as.numeric(2 * sum(diag(Lplus)) / (p - 1))   # [FIX-Rbar-v2] media por par
 }
 
 # Wrapper unico — mismo en scripts 03 y 04 para consistencia
@@ -178,80 +199,67 @@ message("Fixed subnetwork nodes: ", length(fixed_genes))
 # -----------------------------------------------------------------------------
 
 metrics_list <- list()
+n_sub_reps   <- 20L   # [NEW] replicas de submuestreo a n igual entre estados
 
 for (acc in targets) {
   obj   <- readRDS(file.path("data/processed", paste0(acc, "_processed.rds")))
-  expr  <- obj$expr
   pheno <- obj$pheno
+  # [FIX-subset] recortar a la subred fija ANTES de correlacionar
+  genes_use <- intersect(fixed_genes, rownames(obj$expr))
+  expr      <- obj$expr[genes_use, , drop = FALSE]
+  message("=== ", acc, ": ", nrow(expr), " genes en subred fija ===")
 
   ord    <- state_orders[[acc]]
   states <- ord[ord %in% as.character(unique(pheno$condition))]
+  n_by_state <- sapply(states, function(st) sum(pheno$condition == st))
+  states <- states[n_by_state[states] >= 4L]
+  n_min  <- min(n_by_state[states])
+  message("  n por estado: ", paste(states, n_by_state[states], sep = "=", collapse = " | "),
+          " -> submuestreo a n_min=", n_min)
+
+  # beta fijo del estado sano (primer estado en orden fisiologico)
+  healthy_samples <- pheno$.sample_id[pheno$condition == states[1]]
+  beta_acc <- pick_beta(expr[, healthy_samples, drop = FALSE])
+  message("  beta (estado sano, fijo para el dataset) = ", beta_acc)
 
   acc_metrics <- list()
-
   for (st in states) {
     samples  <- pheno$.sample_id[pheno$condition == st]
     expr_sub <- expr[, samples, drop = FALSE]
-    if (ncol(expr_sub) < 4L) {
-      message("  Skipping ", acc, "/", st, ": too few samples")
-      next
-    }
 
-    net <- compute_adjacency(expr_sub, cor_method = "bicor")
-    W   <- net$adj
+    # Red con TODAS las muestras del estado (se guarda para scripts 03/04)
+    Wsub <- compute_adjacency(expr_sub, beta_acc)$adj
+    mods <- find_modules(Wsub)
+    fwrite(data.frame(gene = names(mods$module), module = unname(mods$module),
+                      accession = acc, condition = st),
+           file.path("results/modules", paste0(acc, "_", st, "_modules.tsv")), sep = "\t")
+    m    <- compute_metrics(Wsub)
+    m0   <- compute_metrics(configuration_null(Wsub))
 
-    # Subred fija: mismos nodos en todos los datasets/estados  [C5]
-    common_avail <- intersect(fixed_genes, rownames(W))
-    if (length(common_avail) < 50L) {
-      message("  Warning: only ", length(common_avail),
-              " fixed genes available in ", acc, "/", st)
-    }
-    Wsub <- W[common_avail, common_avail, drop = FALSE]
-
-    # Modulos con seleccion por n*Q  [C7]
-    mods      <- find_modules(Wsub)
-    module_df <- data.frame(gene      = names(mods$module),
-                            module    = unname(mods$module),
-                            accession = acc,
-                            condition = st)
-    fwrite(module_df,
-           file.path("results/modules",
-                     paste0(acc, "_", st, "_modules.tsv")), sep = "\t")
-
-    m <- compute_metrics(Wsub)
+    # [NEW] Metricas a n igual: media/sd sobre submuestras de tamano n_min
+    set.seed(1234)
+    sub_m <- t(replicate(n_sub_reps, {
+      sel <- sample(samples, n_min)
+      compute_metrics(compute_adjacency(expr_sub[, sel, drop = FALSE], beta_acc)$adj)
+    }))
 
     acc_metrics[[st]] <- data.frame(
-      accession    = acc,
-      condition    = st,
-      n_samples    = ncol(expr_sub),
-      n_genes      = nrow(expr_sub),
-      n_subgenes   = nrow(Wsub),
-      beta         = net$beta,
-      EG           = m["EG"],
-      Gbar         = m["Gbar"],
-      Rbar         = m["Rbar"],
-      Hb           = m["Hb"],
-      mean_k       = mean(rowSums(Wsub)),
-      n_modules    = mods$n_modules,
-      Q_modularity = mods$Q
+      accession = acc, condition = st,
+      n_samples = ncol(expr_sub), n_sub = n_min, n_subgenes = nrow(Wsub), beta = beta_acc,
+      EG = m["EG"], Gbar = m["Gbar"], Rbar = m["Rbar"], Hb = m["Hb"],
+      EG_rel = m["EG"] / m0["EG"], Gbar_rel = m["Gbar"] / m0["Gbar"],
+      Rbar_rel = m["Rbar"] / m0["Rbar"], Hb_rel = m["Hb"] / m0["Hb"],
+      EG_sub = mean(sub_m[, "EG"]),   EG_sub_sd = sd(sub_m[, "EG"]),
+      Gbar_sub = mean(sub_m[, "Gbar"]), Gbar_sub_sd = sd(sub_m[, "Gbar"]),
+      Rbar_sub = mean(sub_m[, "Rbar"]), Rbar_sub_sd = sd(sub_m[, "Rbar"]),
+      Hb_sub = mean(sub_m[, "Hb"]),   Hb_sub_sd = sd(sub_m[, "Hb"]),
+      mean_k = mean(rowSums(Wsub)), n_modules = mods$n_modules, Q_modularity = mods$Q
     )
-
-    saveRDS(list(W = Wsub, genes = rownames(Wsub), beta = net$beta),
-            file.path("results/networks",
-                      paste0(acc, "_", st, "_network.rds")))
+    saveRDS(list(W = Wsub, genes = rownames(Wsub), beta = beta_acc),
+            file.path("results/networks", paste0(acc, "_", st, "_network.rds")))
   }
-
-  # [C8 + FIX-match] Orden fisiologico garantizado.
-  # match(states, condition) devuelve el indice de fila de cada estado en el
-  # orden correcto. La version incorrecta match(condition, states) devolvia la
-  # posicion en el vector states para cada fila — mezclaba en lugar de ordenar.
   metrics_df <- dplyr::bind_rows(acc_metrics)
-  row_order  <- match(states, metrics_df$condition)
-  metrics_df <- metrics_df[row_order[!is.na(row_order)], ]
-
-  fwrite(metrics_df,
-         file.path("results/metrics",
-                   paste0(acc, "_constructal_metrics.tsv")), sep = "\t")
+  metrics_df <- metrics_df[match(states, metrics_df$condition), ]
   metrics_list[[acc]] <- metrics_df
 }
 
@@ -262,8 +270,13 @@ zscore_global <- function(x) as.numeric(scale(x))
 
 all_metrics <- all_metrics |>
   dplyr::mutate(
-    CEI = zscore_global(EG) + zscore_global(Gbar) -
-          zscore_global(Rbar) + zscore_global(Hb)
+    # CEI sobre metricas a n IGUAL (evita confundir densidad por ruido de muestreo)
+    CEI = zscore_global(EG_sub) + zscore_global(Gbar_sub) -
+          zscore_global(Rbar_sub) + zscore_global(Hb_sub),
+    # CEI relativo al nulo de configuracion (estructura, no densidad)
+    # (Hb_rel == 1 por construccion: el nulo preserva las fuerzas; se excluye)
+    CEI_rel = zscore_global(EG_rel) + zscore_global(Gbar_rel) -
+              zscore_global(Rbar_rel)
   )
 
 # Reescribir archivos por dataset con CEI global incluido
