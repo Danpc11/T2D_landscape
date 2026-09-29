@@ -14,7 +14,7 @@
 #   [C11] Bootstrap paralelizado con doParallel/foreach.
 #   [C12] Datasets: GSE76895, GSE18732, GSE15653, GSE27951.
 #   [FIX-beta]  Beta fijo del archivo guardado por script 02.
-#   [FIX-Rbar]  Rbar = 2*tr(L+)/p (corregido desde /(p-1)).
+#   [FIX-Rbar-v2] Rbar = 2*tr(L+)/(p-1). [FIX-EG] sin *2. [FIX-subset] bicor sobre subred. [FIX-pval] (b+1)/(B+1).
 #   [FIX-hv]    high_variance_genes.rds leido UNA vez antes del bucle principal.
 #               La version original lo leia en cada iteracion bootstrap (1200x).
 #   [FIX-doRNG] doRNG opcional — fallback a %dopar% si no esta instalado.
@@ -114,7 +114,7 @@ compute_metrics <- function(W) {
                                       diag = FALSE)
   Dg   <- distances(g, weights = 1 / (E(g)$weight + 1e-6))
   invD <- 1 / Dg; diag(invD) <- NA_real_
-  EG   <- mean(invD[upper.tri(invD)], na.rm = TRUE) * 2
+  EG   <- mean(invD[upper.tri(invD)], na.rm = TRUE)
 
   Dinv <- diag(1 / sqrt(k + 1e-12), p)
   Gbar <- mean(expm(Dinv %*% W %*% Dinv)[row(W) != col(W)])
@@ -124,7 +124,7 @@ compute_metrics <- function(W) {
   tol      <- max(abs(eig$values)) * p * 1e-10
   inv_vals <- ifelse(eig$values > tol, 1 / eig$values, 0)
   Lplus    <- eig$vectors %*% diag(inv_vals, p) %*% t(eig$vectors)
-  Rbar     <- as.numeric(2 * sum(diag(Lplus)) / p)   # [FIX-Rbar]
+  Rbar     <- as.numeric(2 * sum(diag(Lplus)) / (p - 1))   # [FIX-Rbar-v2] media por par
 
   prob <- k / sum(k)
   Hb   <- -sum(prob * log(prob + 1e-12))
@@ -141,7 +141,7 @@ compute_metrics_perm <- function(W) {
                                     diag = FALSE)
   Dg   <- distances(g, weights = 1 / (E(g)$weight + 1e-6))
   invD <- 1 / Dg; diag(invD) <- NA_real_
-  EG   <- mean(invD[upper.tri(invD)], na.rm = TRUE) * 2
+  EG   <- mean(invD[upper.tri(invD)], na.rm = TRUE)
   prob <- k / sum(k)
   Hb   <- -sum(prob * log(prob + 1e-12))
   c(EG = EG, Hb = Hb)
@@ -149,13 +149,15 @@ compute_metrics_perm <- function(W) {
 
 # [FIX-beta + FIX-hv] build_network con beta fijo y genes pre-cargados
 build_network <- function(expr_sub, beta_fixed, fixed_genes) {
+  # [FIX-subset] recortar ANTES de correlacionar (antes: bicor 5000x5000 y recorte -> ~40x mas lento)
+  top      <- intersect(fixed_genes, rownames(expr_sub))
+  expr_sub <- expr_sub[top, , drop = FALSE]
   cm <- bicor(t(expr_sub), maxPOutliers = 0.1)
   cm[is.na(cm)] <- 0
   W  <- abs(cm)^beta_fixed
   diag(W) <- 0
   rownames(W) <- colnames(W) <- rownames(expr_sub)
-  top <- intersect(fixed_genes, rownames(W))
-  W[top, top, drop = FALSE]
+  W
 }
 
 # =============================================================================
@@ -236,11 +238,14 @@ permute_group_test <- function(expr, pheno, states, betas,
     state2        = states[2],
     obs_diff_EG   = obs_diff["EG"],
     obs_diff_Hb   = obs_diff["Hb"],
-    obs_diff_CEI  = obs_CEI,
-    p_perm_EG     = mean(abs(perm_diffs[, "EG"])  >= abs(obs_diff["EG"]),  na.rm = TRUE),
-    p_perm_Hb     = mean(abs(perm_diffs[, "Hb"])  >= abs(obs_diff["Hb"]),  na.rm = TRUE),
-    p_perm_CEI    = mean(abs(perm_diffs[, "CEI"]) >= abs(obs_CEI),         na.rm = TRUE),
-    n_perm        = n_perm
+    obs_diff_EGHb = obs_CEI,   # suma cruda EG+Hb (NO es el CEI z-scoreado de 02)
+    # [FIX-pval] (b+1)/(B+1): evita p=0; n_distinct_perm advierte cuando el numero
+    # de permutaciones distintas de etiquetas es pequeno (p.ej. 5 vs 4 -> 126).
+    p_perm_EG     = (sum(abs(perm_diffs[, "EG"])  >= abs(obs_diff["EG"]),  na.rm = TRUE) + 1) / (n_perm + 1),
+    p_perm_Hb     = (sum(abs(perm_diffs[, "Hb"])  >= abs(obs_diff["Hb"]),  na.rm = TRUE) + 1) / (n_perm + 1),
+    p_perm_EGHb   = (sum(abs(perm_diffs[, "CEI"]) >= abs(obs_CEI),         na.rm = TRUE) + 1) / (n_perm + 1),
+    n_perm        = n_perm,
+    n_distinct_perm = choose(ncol(expr2), sum(ph2$condition == states[1]))
   )
 }
 
@@ -248,6 +253,10 @@ permute_group_test <- function(expr, pheno, states, betas,
 # OPTIMO CONSTRUCTAL
 # =============================================================================
 
+# [NOTA-v2] W* ~ (k_i k_j)^(1/alpha) es, salvo exponente, el modelo de configuracion
+# (Chung-Lu): la red SIN estructura con la misma secuencia de fuerzas. La "desviacion
+# del optimo" mide por tanto cuanta estructura (modularidad) tiene la red, no cuanto
+# le falta para ser eficiente. Se conserva el calculo pero debe interpretarse asi.
 approx_constructal_optimum <- function(W_ref, alpha = 2) {
   p        <- nrow(W_ref)
   k_ref    <- rowSums(W_ref)
