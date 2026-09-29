@@ -33,7 +33,7 @@ suppressPackageStartupMessages({
 })
 
 options(stringsAsFactors = FALSE)
-allowWGCNAThreads()
+if (parallel::detectCores() >= 2L) allowWGCNAThreads()   # [FIX] falla con 1 core
 
 dir.create("results/networks", recursive = TRUE, showWarnings = FALSE)
 dir.create("results/metrics",  recursive = TRUE, showWarnings = FALSE)
@@ -60,7 +60,7 @@ state_orders <- list(
 pick_beta <- function(expr, cor_method = "bicor") {
   expr_t <- t(expr)
   sft    <- pickSoftThreshold(expr_t, dataIsExpr = TRUE, corFnc = cor_method,
-                              corOptions = "use = 'p', maxPOutliers = 0.1",
+                              corOptions = list(use = 'p', maxPOutliers = 0.1),
                               powerVector = 1:20, RsquaredCut = 0.80, verbose = 0)
   beta <- sft$powerEstimate
   if (is.na(beta)) {
@@ -190,16 +190,19 @@ if (!file.exists(hv_genes_path)) {
   stop("'high_variance_genes.rds' no encontrado. Ejecuta primero el script 01.")
 }
 hv_genes    <- readRDS(hv_genes_path)
-p_sub       <- min(800L, length(hv_genes))
+p_sub       <- min(as.integer(Sys.getenv("P_SUB", unset = "800")), length(hv_genes))
 fixed_genes <- hv_genes[seq_len(p_sub)]
 message("Fixed subnetwork nodes: ", length(fixed_genes))
+dir.create("results/networks", showWarnings = FALSE, recursive = TRUE)
+# [NEW] persistir la subred fija para que 03/04 usen EXACTAMENTE el mismo conjunto
+saveRDS(fixed_genes, "results/networks/fixed_subnetwork_genes.rds")
 
 # -----------------------------------------------------------------------------
 # Bucle principal
 # -----------------------------------------------------------------------------
 
 metrics_list <- list()
-n_sub_reps   <- 20L   # [NEW] replicas de submuestreo a n igual entre estados
+n_sub_reps   <- as.integer(Sys.getenv("N_SUB_REPS", unset = "20"))   # [NEW] replicas de submuestreo a n igual entre estados
 
 for (acc in targets) {
   obj   <- readRDS(file.path("data/processed", paste0(acc, "_processed.rds")))
