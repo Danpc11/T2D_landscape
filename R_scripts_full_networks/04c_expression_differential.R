@@ -18,6 +18,7 @@
 #     in the linear model (healthy state = reference factor level).
 #   - Additional critical-transition contrast: T2D_vs_IGT and ObT2D_vs_ObnoT2D
 #     to capture the phase-transition signature at the critical step.
+#   - [FIX-contrast] combined_score usa el contraste final-vs-referencia prefijado.
 #   - Direct integration with gene_driver_scores.tsv (shared branch) and
 #     full_gene_driver_scores.tsv (full branch), generating:
 #       combined_score = (PTI + IRI + TRI) * |logFC|
@@ -184,11 +185,17 @@ integrate_drivers <- function(de_file, driver_file, out_file) {
   de <- fread(de_file)
   dr <- fread(driver_file)
 
-  # Extraer el mejor contraste (mayor |logFC|) por gen
+  # [FIX-contrast] Usar el contraste PRE-ESPECIFICADO estado final vs referencia
+  # (el mismo que define IRI/TRI). Elegir "el mayor |logFC| por gen" entre
+  # contrastes es seleccionar el mejor de varios tests (sesgo optimista).
+  final_contrasts <- c("T2D_vs_ND", "T2D_vs_NGT", "Obese_T2D_vs_Lean")
+  main_contrast   <- intersect(final_contrasts, unique(de$contrast))[1]
+  if (is.na(main_contrast)) {
+    message("  -> Contraste final no encontrado; se usa el primero disponible")
+    main_contrast <- unique(de$contrast)[1]
+  }
   de_best <- de |>
-    dplyr::group_by(gene) |>
-    dplyr::slice_max(order_by = abs(logFC), n = 1, with_ties = FALSE) |>
-    dplyr::ungroup() |>
+    dplyr::filter(contrast == main_contrast) |>
     dplyr::select(gene, logFC, adj.P.Val, contrast)
 
   driver_cols <- intersect(c("gene", "PTI", "IRI", "TRI", "KO_support", "class"), colnames(dr))
