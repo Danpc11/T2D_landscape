@@ -188,7 +188,8 @@ integrate_drivers <- function(de_file, driver_file, out_file) {
   # [FIX-contrast] Usar el contraste PRE-ESPECIFICADO estado final vs referencia
   # (el mismo que define IRI/TRI). Elegir "el mayor |logFC| por gen" entre
   # contrastes es seleccionar el mejor de varios tests (sesgo optimista).
-  final_contrasts <- c("T2D_vs_ND", "T2D_vs_NGT", "Obese_T2D_vs_Lean")
+  # los contrastes de limma se llaman "final - referencia" (p.ej. "T2D - ND")
+  final_contrasts <- c("T2D - ND", "T2D - NGT", "Obese_T2D - Lean")
   main_contrast   <- intersect(final_contrasts, unique(de$contrast))[1]
   if (is.na(main_contrast)) {
     message("  -> Contraste final no encontrado; se usa el primero disponible")
