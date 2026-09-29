@@ -50,7 +50,7 @@ suppressPackageStartupMessages({
 # Para instalarlo: install.packages("RSpectra")
 HAS_RSPECTRA <- requireNamespace("RSpectra", quietly = TRUE)
 if (HAS_RSPECTRA) {
-  message("RSpectra disponible: Gbar/Rbar usaran eigendescomposicion truncada.")
+  message("RSpectra disponible (solo se usa para Rbar si p_sub > 5000; Gbar siempre exacto).")
 } else {
   message("RSpectra NO disponible: usando eigen() base (mas lento para p>3000).")
   message("Para instalar: install.packages('RSpectra')")
@@ -478,8 +478,8 @@ compute_metrics_fast <- function(W, beta, st,
   }
   p_sub <- nrow(W_sub)
 
-  # --- Communicabilidad (Gbar) con eigendescomposicion truncada ---
-  message("    [", st, "] Gbar (eigs k=", min(k_eig, p_sub - 1L), ")...")
+  # --- Communicabilidad (Gbar), eigen completo [FIX-Gbar-exact] ---
+  message("    [", st, "] Gbar (eigen completo, p_sub=", p_sub, ")...")
   k_str <- rowSums(W_sub)
   k_inv <- 1 / sqrt(k_str + 1e-12)
   # Producto eficiente: D^{-1/2} W D^{-1/2} sin materializar matriz densa
