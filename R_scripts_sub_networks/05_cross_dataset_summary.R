@@ -11,6 +11,7 @@
 #         first()/last(). Prevents CEI_change inversion due to alphabetical order.
 #   [C19] Datasets and state_orders updated to the microarray quartet.
 #   [NEW] Warn if the join generates NAs in phys_order (unrecognized conditions).
+#   [FIX-regex] patrones anclados ^GSE: antes capturaban all_*.tsv -> filas duplicadas.
 # =============================================================================
 suppressPackageStartupMessages({
   library(data.table)
@@ -33,8 +34,8 @@ dataset_info <- data.frame(
   organ     = c(
     "Pancreatic islets",   # GSE76895: Taneera et al. 2012
     "Skeletal muscle",     # GSE18732: Gallagher et al. 2010
-    "Liver",               # GSE15653: Ahrén et al. 2010
-    "Adipose tissue"       # GSE27951: Civelek et al. 2017
+    "Liver",               # GSE15653: Pihlajamaki et al. 2009 (verificar en GEO)
+    "Adipose tissue"       # GSE27951: Keller et al. 2011 (verificar en GEO)
   ),
   stringsAsFactors = FALSE
 )
@@ -83,8 +84,8 @@ read_and_label <- function(dir_path, pattern, branch_name) {
 message("1. Métricas...")
 
 metrics <- bind_rows(
-  read_and_label("results/metrics", "_constructal_metrics\\.tsv$", "shared"),
-  read_and_label("results/full_metrics", "_full_constructal_metrics\\.tsv$", "full")
+  read_and_label("results/metrics", "^GSE[0-9]+_constructal_metrics\\.tsv$", "shared"),
+  read_and_label("results/full_metrics", "^GSE[0-9]+_full_constructal_metrics\\.tsv$", "full")
 )
 
 if (nrow(metrics) > 0) {
@@ -115,6 +116,10 @@ if (nrow(metrics) > 0) {
       Hb_change   = last(Hb)   - first(Hb),
       Rbar_change = last(Rbar) - first(Rbar),
       Gbar_change = last(Gbar) - first(Gbar),
+      # [NEW] cambios a n igual y relativos al nulo (rama shared; NA en full)
+      EG_sub_change  = if ("EG_sub" %in% names(cur_data())) last(EG_sub) - first(EG_sub) else NA_real_,
+      EG_rel_change  = if ("EG_rel" %in% names(cur_data())) last(EG_rel) - first(EG_rel) else NA_real_,
+      CEI_change     = if ("CEI" %in% names(cur_data())) last(CEI) - first(CEI) else NA_real_,
       .groups = "drop"
     )
 
