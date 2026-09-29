@@ -122,10 +122,12 @@ extract_gene_symbols <- function(eset, accession) {
     if (requireNamespace("org.Hs.eg.db", quietly = TRUE) && any(is.na(mapped))) {
       todo <- which(is.na(mapped) & grepl("^ENS[TG]", clean_ids))
       if (length(todo) > 0) {
-        m2 <- suppressMessages(AnnotationDbi::mapIds(
+        # mapIds lanza ERROR (no NA) si ninguna clave es valida -> tryCatch
+        m2 <- tryCatch(suppressMessages(AnnotationDbi::mapIds(
                 org.Hs.eg.db::org.Hs.eg.db, keys = clean_ids[todo], column = "SYMBOL",
-                keytype = if (is_tx) "ENSEMBLTRANS" else "ENSEMBL", multiVals = "first"))
-        mapped[todo] <- unname(m2)
+                keytype = if (is_tx) "ENSEMBLTRANS" else "ENSEMBL", multiVals = "first")),
+              error = function(e) NULL)
+        if (!is.null(m2)) mapped[todo] <- unname(m2)[match(clean_ids[todo], names(m2))]
       }
     }
 
