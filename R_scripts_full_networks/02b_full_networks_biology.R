@@ -30,8 +30,9 @@
 #           Hilos BLAS divididos equitativamente entre procesos hijos.
 #
 # INVARIANTES MATEMATICOS PRESERVADOS:
-#   - Rbar = 2*tr(L+)/p  (correccion FIX-Rbar de pipeline)
-#   - Gbar: aproximacion espectral truncada, error <1% con k=200
+#   - Rbar = 2*tr(L+)/(p-1) [FIX-Rbar-v2]; EG sin *2 [FIX-EG]
+#   - Gbar: eigen COMPLETO sobre subred top-3000 [FIX-Gbar-exact]
+#   - beta unico por dataset (estado sano) [FIX-beta-dataset]
 #   - EG: esparsificacion por umbral min_cor (igual que version original)
 #   - Beta: seleccionado por fit R^2 >= 0.80 sobre la misma bicor matrix
 # =============================================================================
@@ -108,7 +109,8 @@ state_orders <- list(
 # recalcular correlaciones.
 # -----------------------------------------------------------------------------
 compute_adjacency_fast <- function(expr, cor_method = "bicor",
-                                   powers = 1:20, min_R2 = 0.80) {
+                                   powers = 1:20, min_R2 = 0.80,
+                                   beta_fixed = NULL) {
 
   expr_t <- t(expr)   # muestras x genes (formato WGCNA)
   p      <- nrow(expr)
@@ -125,9 +127,12 @@ compute_adjacency_fast <- function(expr, cor_method = "bicor",
   abs_cor <- abs(cor_mat)   # guardar |cor| para reusar
 
   # --- Evaluar fit de escala libre para cada beta ---
-  message("    Seleccionando beta (fit escala libre)...")
   best_beta <- NA_integer_
   best_R2   <- -Inf
+  if (!is.null(beta_fixed)) {            # [FIX-beta-dataset] beta impuesto (estado sano)
+    best_beta <- beta_fixed; powers <- integer(0)
+    message("    beta fijo del dataset = ", best_beta)
+  } else message("    Seleccionando beta (fit escala libre)...")
 
   for (beta in powers) {
     # Conectividad: sum_j |cor_ij|^beta (O(p^2) pero sin recalcular cor)
@@ -148,11 +153,15 @@ compute_adjacency_fast <- function(expr, cor_method = "bicor",
     sel    <- freq > 0
     if (sum(sel) < 3L) next
 
-    fit  <- lm(log10(freq[sel] + 1e-9) ~ mids[sel])
-    R2   <- summary(fit)$r.squared
-    if (!is.na(R2) && R2 >= min_R2 && R2 > best_R2) {
+    fit   <- lm(log10(freq[sel] + 1e-9) ~ mids[sel])
+    R2    <- summary(fit)$r.squared
+    slope <- coef(fit)[2]
+    # [FIX-beta-min] convencion WGCNA: el MENOR beta que alcanza R2 >= min_R2 con
+    # pendiente negativa. Antes se tomaba el de maximo R2 -> sesgo a beta altos.
+    if (!is.na(R2) && R2 >= min_R2 && slope < 0) {
       best_R2   <- R2
       best_beta <- beta
+      break
     }
   }
 
@@ -437,7 +446,7 @@ compute_metrics_fast <- function(W, beta, st,
                                                   weighted = TRUE, diag = FALSE)
     D      <- igraph::distances(g_sp, weights = 1 / (igraph::E(g_sp)$weight + 1e-6))
     invD   <- 1 / D; diag(invD) <- NA_real_
-    EG     <- mean(invD[upper.tri(invD)], na.rm = TRUE) * 2
+    EG     <- mean(invD[upper.tri(invD)], na.rm = TRUE)
     rm(W_sp_s, g_sp, D, invD)
   }
   rm(idx); gc(verbose = FALSE)
@@ -477,20 +486,12 @@ compute_metrics_fast <- function(W, beta, st,
   # Wn[i,j] = k_inv[i] * W_sub[i,j] * k_inv[j]
   Wn    <- W_sub * outer(k_inv, k_inv)
 
-  k_use <- min(k_eig, p_sub - 2L)
-  if (p_sub <= 500L || !HAS_RSPECTRA || k_use < 5L) {
-    eig  <- eigen(Wn, symmetric = TRUE)
-    vals <- eig$values; vecs <- eig$vectors
-  } else {
-    eig <- tryCatch(
-      RSpectra::eigs_sym(Wn, k = k_use, which = "LM"),
-      error = function(e) {
-        message("    RSpectra fallo Gbar (", conditionMessage(e), "), eigen base.")
-        eigen(Wn, symmetric = TRUE)
-      }
-    )
-    vals <- eig$values; vecs <- eig$vectors
-  }
+  # [FIX-Gbar-exact] El espectro de D^-1/2 W D^-1/2 vive en [-1,1] y exp() NO decae,
+  # asi que truncar a k autovectores descarta la mayor parte de la traza
+  # (error 30-50% verificado en simulacion). Con p_sub <= 3000, eigen() completo
+  # cuesta segundos. Se elimina la truncacion.
+  eig  <- eigen(Wn, symmetric = TRUE)
+  vals <- eig$values; vecs <- eig$vectors
   exp_vals <- exp(vals)
   col_sums <- colSums(vecs)
   sum_G    <- sum(exp_vals * col_sums^2)
@@ -520,7 +521,7 @@ compute_metrics_fast <- function(W, beta, st,
   }
   tol     <- max(abs(lam)) * p_sub * 1e-10
   inv_lam <- ifelse(abs(lam) > tol, 1 / lam, 0)
-  Rbar    <- 2 * sum(inv_lam) / p_sub   # [FIX-Rbar]
+  Rbar    <- 2 * sum(inv_lam) / (p_sub - 1)   # [FIX-Rbar-v2]
   rm(L, lam, inv_lam); gc(verbose = FALSE)
 
   # --- Entropia de fuerza (Hb) — sobre red completa ---
@@ -560,6 +561,12 @@ for (acc in targets) {
   message("=== FULL networks: ", acc, " (",
           nrow(expr), " genes, ", ncol(expr), " muestras) ===")
 
+  # [FIX-beta-dataset] beta estimado UNA vez sobre el estado sano y fijo para
+  # todos los estados del dataset.
+  healthy_samples <- pheno$.sample_id[pheno$condition == states[1]]
+  beta_acc <- compute_adjacency_fast(expr[, healthy_samples, drop = FALSE])$beta
+  message("  beta del dataset (estado sano ", states[1], ") = ", beta_acc)
+
   # Estrategia de paralelismo: un proceso R por estado
   n_states  <- length(states)
   blas_per  <- max(1L, floor(n_workers / n_states))
@@ -594,7 +601,7 @@ for (acc in targets) {
     # [OPT-1] Adjacency: bicor UNA vez + beta por fit escala libre
     message("  [", st, "] Calculando adjacency...")
     t0  <- proc.time()
-    net <- compute_adjacency_fast(expr_sub, cor_method = "bicor")
+    net <- compute_adjacency_fast(expr_sub, cor_method = "bicor", beta_fixed = beta_acc)
     W   <- net$adj
     message("  [", st, "] Adjacency: ", round((proc.time()-t0)["elapsed"], 1), "s")
 
@@ -629,7 +636,12 @@ for (acc in targets) {
     message("  [", st, "] Metricas: ",
             round((proc.time()-t0)["elapsed"], 1), "s")
 
-    saveRDS(list(W = W, genes = rownames(W), beta = net$beta),
+    # [FIX-disk] guardar la subred top-3000 por fuerza (usada por 03b/04b) y las
+    # fuerzas completas, en lugar de W densa de 14k-22k genes (1.7-3.8 GB/estado).
+    k_save  <- min(3000L, nrow(W))
+    top_idx <- order(rowSums(W), decreasing = TRUE)[seq_len(k_save)]
+    saveRDS(list(W = W[top_idx, top_idx], genes = rownames(W)[top_idx],
+                 strength_full = rowSums(W), beta = net$beta, p_full = nrow(W)),
             file.path("results/full_networks",
                       paste0(acc, "_", st, "_full_network.rds")))
 
