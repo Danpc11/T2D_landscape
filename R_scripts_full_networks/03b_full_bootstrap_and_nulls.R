@@ -28,7 +28,9 @@
 #              completa — la subred de top genes captura la estructura modular.
 #              K por defecto = min(2000, p) genes.
 #
-#   [FIX-Rbar] Rbar = 2*tr(L+)/p (version original usaba /(p-1)).
+#   [FIX-Rbar-v2] Rbar = 2*tr(L+)/(p-1). [FIX-EG] sin *2. [FIX-Gbar-exact] sin truncacion.
+#   [FIX-geneset] conjunto de genes fijo por dataset. [FIX-pval] (b+1)/(B+1).
+#   NOTA: 02b ahora guarda W como subred top-3000; el optimo se calcula sobre ella.
 #   [FIX-beta] Beta fijo del archivo guardado por 02b (no reoptimiza).
 #   [FIX-PAR]  makeCluster explicito + stopCluster al final.
 #   [FIX-RNG]  doRNG para reproducibilidad en paralelo.
@@ -153,7 +155,7 @@ compute_EG_fast <- function(W, eg_keep_pct = 0.001, eg_cap = 300000L) {
   rm(W_sm)
   D    <- igraph::distances(g, weights = 1 / (igraph::E(g)$weight + 1e-6))
   invD <- 1 / D; diag(invD) <- NA_real_
-  mean(invD[upper.tri(invD)], na.rm = TRUE) * 2
+  mean(invD[upper.tri(invD)], na.rm = TRUE)
 }
 
 # [OPT-GBAR] Gbar con top-k eigenvalores
@@ -166,18 +168,9 @@ compute_Gbar_fast <- function(W, k_eig = 50L) {
   # Producto eficiente: Wn[i,j] = Dinv[i] * W[i,j] * Dinv[j]
   Wn   <- W * outer(Dinv, Dinv)
 
-  k_use <- min(k_eig, p - 2L)
-
-  if (p <= 300L || !HAS_RSPECTRA || k_use < 5L) {
-    eig  <- eigen(Wn, symmetric = TRUE)
-    vals <- eig$values; vecs <- eig$vectors
-  } else {
-    eig <- tryCatch(
-      RSpectra::eigs_sym(Wn, k = k_use, which = "LM"),
-      error = function(e) eigen(Wn, symmetric = TRUE)
-    )
-    vals <- eig$values; vecs <- eig$vectors
-  }
+  # [FIX-Gbar-exact] sin truncacion (ver 02b); p <= 2000 en bootstrap -> segundos
+  eig  <- eigen(Wn, symmetric = TRUE)
+  vals <- eig$values; vecs <- eig$vectors
   exp_vals <- exp(vals)
   col_sums <- colSums(vecs)
   sum_G    <- sum(exp_vals * col_sums^2)
@@ -206,7 +199,7 @@ compute_Rbar_fast <- function(W) {
   }
   tol     <- max(abs(lam)) * p * 1e-10
   inv_lam <- ifelse(abs(lam) > tol, 1 / lam, 0)
-  2 * sum(inv_lam) / p   # [FIX-Rbar]
+  2 * sum(inv_lam) / (p - 1)   # [FIX-Rbar-v2]
 }
 
 # [OPT-HB] Hb es O(p) — sin cambio
@@ -245,16 +238,12 @@ compute_metrics_fast <- function(W, eg_keep_pct = 0.001, k_gbar = 50L) {
 # varianza. El bootstrap mide ROBUSTEZ de la distribucion de metricas, no
 # necesita la red completa de 14k genes. Con K=2000 la estructura modular
 # se preserva y el tiempo cae de horas a minutos por iteracion.
-build_full_network_boot <- function(expr_sub, beta_fixed,
-                                   max_genes = 2000L) {
-  p <- nrow(expr_sub)
-
-  # Reducir a top-K genes de mayor varianza si p > max_genes
-  if (p > max_genes) {
-    gene_var   <- apply(expr_sub, 1, var, na.rm = TRUE)
-    top_genes  <- order(gene_var, decreasing = TRUE)[seq_len(max_genes)]
-    expr_sub   <- expr_sub[top_genes, , drop = FALSE]
-  }
+# [FIX-geneset] El conjunto de genes se fija UNA vez por dataset (top-K por varianza
+# sobre TODAS las muestras) y se pasa como `genes_fixed`. Antes se recalculaba
+# dentro de cada replica bootstrap y de cada grupo permutado -> el conjunto de
+# nodos cambiaba en cada iteracion, inflando la varianza y sesgando el test.
+build_full_network_boot <- function(expr_sub, beta_fixed, genes_fixed) {
+  expr_sub <- expr_sub[genes_fixed, , drop = FALSE]
 
   cm <- WGCNA::bicor(t(expr_sub), maxPOutliers = 0.1)
   cm[is.na(cm)] <- 0
@@ -273,13 +262,13 @@ build_full_network_boot <- function(expr_sub, beta_fixed,
 # =============================================================================
 
 bootstrap_by_state <- function(expr, pheno, state, beta_fixed,
-                               n_iter = 100L, max_genes = 2000L) {
+                               n_iter = 100L, genes_fixed) {
   samples    <- pheno$.sample_id[pheno$condition == state]
   expr_state <- expr[, samples, drop = FALSE]
   if (ncol(expr_state) < 3L) return(NULL)
 
   message("  Bootstrap: ", state, " (n=", ncol(expr_state),
-          ", top-", min(max_genes, nrow(expr_state)), " genes, ",
+          ", ", length(genes_fixed), " genes fijos, ",
           n_iter, " iter, ", n_workers, " workers)")
 
   foreach(i          = seq_len(n_iter),
@@ -292,7 +281,7 @@ bootstrap_by_state <- function(expr, pheno, state, beta_fixed,
     sel <- sample(seq_len(ncol(expr_state)), size = ncol(expr_state),
                   replace = TRUE)
     W   <- build_full_network_boot(expr_state[, sel, drop = FALSE],
-                                   beta_fixed, max_genes)
+                                   beta_fixed, genes_fixed)
     data.frame(iter = i, condition = state,
                t(compute_metrics_fast(W, eg_keep_pct = 0.001, k_gbar = 50L)))
   }
@@ -303,9 +292,10 @@ bootstrap_by_state <- function(expr, pheno, state, beta_fixed,
 # =============================================================================
 
 permute_group_test <- function(expr, pheno, states, betas,
-                               n_perm = 1000L, max_genes = 2000L) {
+                               n_perm = 1000L, genes_fixed) {
   keep  <- pheno$condition %in% states
-  expr2 <- expr[, pheno$.sample_id[keep], drop = FALSE]
+  # [FIX-export] recortar aqui para no serializar 14k genes a cada tarea
+  expr2 <- expr[genes_fixed, pheno$.sample_id[keep], drop = FALSE]
   ph2   <- droplevels(pheno[keep, , drop = FALSE])
   if (length(unique(ph2$condition)) < 2L || ncol(expr2) < 6L) return(NULL)
 
@@ -319,7 +309,7 @@ permute_group_test <- function(expr, pheno, states, betas,
     compute_metrics_perm(
       build_full_network_boot(
         expr2[, ph2$.sample_id[ph2$condition == s], drop = FALSE],
-        betas[[s]], max_genes
+        betas[[s]], genes_fixed
       )
     )
   })
@@ -341,7 +331,7 @@ permute_group_test <- function(expr, pheno, states, betas,
       compute_metrics_perm(
         build_full_network_boot(
           expr2[, ph2$.sample_id[perm_cond == s], drop = FALSE],
-          betas[[s]], max_genes
+          betas[[s]], genes_fixed
         )
       )
     })
@@ -356,11 +346,12 @@ permute_group_test <- function(expr, pheno, states, betas,
     state2        = states[2],
     obs_diff_EG   = obs_diff["EG"],
     obs_diff_Hb   = obs_diff["Hb"],
-    obs_diff_CEI  = obs_CEI,
-    p_perm_EG     = mean(abs(perm_diffs[,"EG"])  >= abs(obs_diff["EG"]),  na.rm = TRUE),
-    p_perm_Hb     = mean(abs(perm_diffs[,"Hb"])  >= abs(obs_diff["Hb"]),  na.rm = TRUE),
-    p_perm_CEI    = mean(abs(perm_diffs[,"CEI"]) >= abs(obs_CEI),         na.rm = TRUE),
-    n_perm        = n_perm
+    obs_diff_EGHb = obs_CEI,
+    p_perm_EG     = (sum(abs(perm_diffs[,"EG"])  >= abs(obs_diff["EG"]),  na.rm = TRUE) + 1) / (n_perm + 1),
+    p_perm_Hb     = (sum(abs(perm_diffs[,"Hb"])  >= abs(obs_diff["Hb"]),  na.rm = TRUE) + 1) / (n_perm + 1),
+    p_perm_EGHb   = (sum(abs(perm_diffs[,"CEI"]) >= abs(obs_CEI),         na.rm = TRUE) + 1) / (n_perm + 1),
+    n_perm        = n_perm,
+    n_distinct_perm = choose(ncol(expr2), sum(ph2$condition == states[1]))
   )
 }
 
@@ -420,9 +411,10 @@ for (acc in targets) {
   if (length(ord) == 0L) next
 
   p_full <- nrow(expr)
-  # Tamano de subred para bootstrap: min(2000, p_full)
-  max_genes_boot <- min(2000L, p_full)
-  message("  p_full=", p_full, " | subred bootstrap=", max_genes_boot, " genes")
+  # [FIX-geneset] top-2000 por varianza sobre TODAS las muestras, fijo para el dataset
+  gene_var    <- apply(expr, 1, var, na.rm = TRUE)
+  genes_fixed <- rownames(expr)[order(gene_var, decreasing = TRUE)[seq_len(min(2000L, p_full))]]
+  message("  p_full=", p_full, " | subred bootstrap/permutacion=", length(genes_fixed), " genes (fijos)")
 
   # Cargar betas guardados por 02b
   betas <- lapply(setNames(ord, ord), function(st) {
@@ -437,7 +429,7 @@ for (acc in targets) {
   # --- 1. Bootstrap por estado ---
   boot_list <- lapply(ord, function(st) {
     bootstrap_by_state(expr, pheno, st, betas[[st]],
-                       n_iter = n_boot, max_genes = max_genes_boot)
+                       n_iter = n_boot, genes_fixed = genes_fixed)
   })
   boot_df <- dplyr::bind_rows(boot_list[!vapply(boot_list, is.null, logical(1))])
   if (nrow(boot_df) > 0L) {
@@ -452,7 +444,7 @@ for (acc in targets) {
   if (length(ord) >= 2L) {
     for (i in seq_len(length(ord) - 1L)) {
       res <- permute_group_test(expr, pheno, ord[c(i, i + 1L)], betas,
-                                n_perm = n_perm, max_genes = max_genes_boot)
+                                n_perm = n_perm, genes_fixed = genes_fixed)
       if (!is.null(res)) pairwise[[i]] <- cbind(accession = acc, res)
     }
   }
@@ -539,4 +531,3 @@ for (acc in targets) {
 
 stopCluster(cl)
 message("Done.")
-
