@@ -117,9 +117,9 @@ if (nrow(metrics) > 0) {
       Rbar_change = last(Rbar) - first(Rbar),
       Gbar_change = last(Gbar) - first(Gbar),
       # [NEW] cambios a n igual y relativos al nulo (rama shared; NA en full)
-      EG_sub_change  = if ("EG_sub" %in% names(cur_data())) last(EG_sub) - first(EG_sub) else NA_real_,
-      EG_rel_change  = if ("EG_rel" %in% names(cur_data())) last(EG_rel) - first(EG_rel) else NA_real_,
-      CEI_change     = if ("CEI" %in% names(cur_data())) last(CEI) - first(CEI) else NA_real_,
+      EG_sub_change  = if ("EG_sub" %in% names(pick(everything()))) last(EG_sub) - first(EG_sub) else NA_real_,
+      EG_rel_change  = if ("EG_rel" %in% names(pick(everything()))) last(EG_rel) - first(EG_rel) else NA_real_,
+      CEI_change     = if ("CEI" %in% names(pick(everything()))) last(CEI) - first(CEI) else NA_real_,
       .groups = "drop"
     )
 
