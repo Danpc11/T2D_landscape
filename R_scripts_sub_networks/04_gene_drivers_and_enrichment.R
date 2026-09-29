@@ -12,13 +12,16 @@
 #   [C14] TRI documented as a computational estimate of rescue potential.
 #   [C15] compute_metrics identical to scripts 02 and 03.
 #   [C16] Datasets updated: GSE76895, GSE18732, GSE15653, GSE27951.
-#   [C17-FIX] TRI and KO-support: rank-1 update of the Laplacian
-#         pseudoinverse via the Sherman-Morrison formula, avoiding O(p^4).
-#         Complexity reduced from O(p^4) to O(p^2) per gene.
+#   [FIX-TRI-exact] TRI y KO por recalculo exacto (la "actualizacion rank-1"
+#         anterior era matematicamente invalida; ver comentario en la funcion).
+#   [FIX-dorng] paralelismo funciona con o sin doRNG.
+#   [FIX-enrich] GO/KEGG independientes, con universo = subred.
+#   NOTA: PTI/IRI/TRI/KO son medidas de SENSIBILIDAD topologica de la red de
+#         correlacion al nodo, no evidencia causal de "rescate" o "knock-out".
 #   [FIX-PTI] Two-condition datasets: mid = last -> PTI != IRI by
 #         construction. The intermediate state is used as mid when available,
 #         otherwise a warning is issued.
-#   [FIX-Rbar] Normalizacion corregida: 2*tr(L+)/p.
+#   [FIX-EG] EG sin el *2 espurio.
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -64,8 +67,10 @@ set.seed(1234)
 cl <- makeCluster(n_workers)
 registerDoParallel(cl)
 if (HAS_DORNG) registerDoRNG(1234)
+# [FIX-dorng] %dorng% solo existe si doRNG esta instalado; antes el script fallaba sin el.
+`%dop%` <- if (HAS_DORNG) doRNG::`%dorng%` else foreach::`%dopar%`
 
-message("Parallel engine: ", n_workers, " workers | BLAS=1 | DoRNG")
+message("Parallel engine: ", n_workers, " workers | BLAS=1 | doRNG=", HAS_DORNG)
 
 # -----------------------------------------------------------------------------
 
@@ -98,7 +103,7 @@ compute_metrics <- function(W) {
                                       diag = FALSE)
   D    <- distances(g, weights = 1 / (E(g)$weight + 1e-6))
   invD <- 1 / D; diag(invD) <- NA_real_
-  EG   <- mean(invD[upper.tri(invD)], na.rm = TRUE) * 2
+  EG   <- mean(invD[upper.tri(invD)], na.rm = TRUE)
   prob <- k / sum(k)
   Hb   <- -sum(prob * log(prob + 1e-12))
   c(EG = EG, Hb = Hb)
@@ -127,128 +132,83 @@ node_metrics <- function(W) {
 }
 
 # -----------------------------------------------------------------------------
-# Laplacian pseudoinverse
+# [FIX-TRI-exact] TRI y KO por RECALCULO EXACTO.
+# La version anterior usaba una "actualizacion rank-1 (Sherman-Morrison)" de tr(L+).
+# Eso no es valido: cambiar la fila/columna i de W cambia L en
+#   dL = diag(dk) - dW, que NO es rango 1, y la expresion usada tampoco era la
+# expansion de primer orden -tr(L+ dL L+) (verificado numericamente: error ~30x).
+# Con p <= 800 el recalculo exacto de EG (distancias) y Hb cuesta ~0.2 s/gen.
+# TRI_i = [EG(W_dis con fila/col i de W_ref) - EG(W_dis)] + [Hb(...) - Hb(W_dis)]
+# KO_i  = EG(W_dis) - EG(W_dis con fila/col i = 0)
 # -----------------------------------------------------------------------------
-
-laplacian_pseudoinverse <- function(W) {
-  p        <- nrow(W)
-  k        <- rowSums(W)
-  L        <- diag(k, p) - W
-  eig      <- eigen(L, symmetric = TRUE)
-  tol      <- max(abs(eig$values)) * p * 1e-10
-  inv_vals <- ifelse(eig$values > tol, 1 / eig$values, 0)
-  eig$vectors %*% diag(inv_vals, p) %*% t(eig$vectors)
+rescue_row <- function(W_dis, W_ref, i) {
+  W <- W_dis
+  W[i, ] <- W_ref[i, ]; W[, i] <- W_ref[, i]; W[i, i] <- 0
+  W
+}
+knockout_row <- function(W_dis, i) {
+  W <- W_dis
+  W[i, ] <- 0; W[, i] <- 0
+  W
 }
 
-# [FIX-Rbar] eg_from_lplus: EG approximated via Rbar = 2*tr(L+)/p -> EG ≈ 1/Rbar
-# For consistency with compute_metrics we use the corrected trace formula.
-eg_from_lplus <- function(Lplus) {
-  p <- nrow(Lplus)
-  # Rbar = 2*tr(Lplus)/p; EG_approx = 1/Rbar (solo para comparacion relativa)
-  rbar <- 2 * sum(diag(Lplus)) / p
-  if (rbar < 1e-12) return(0)
-  1 / rbar
-}
-
-hb_from_W <- function(W) {
-  k    <- rowSums(W)
-  prob <- k / sum(k)
-  -sum(prob * log(prob + 1e-12))
-}
-
-# -----------------------------------------------------------------------------
-# [C17-FIX] TRI with rank-1 update (generalized Sherman-Morrison)
-# -----------------------------------------------------------------------------
-
-compute_TRI_fast <- function(W_dis, W_ref, common) {
+compute_TRI_exact <- function(W_dis, W_ref, common) {
   W_dis <- W_dis[common, common, drop = FALSE]
   W_ref <- W_ref[common, common, drop = FALSE]
-  p     <- length(common)
-
-  Lplus0 <- laplacian_pseudoinverse(W_dis)
-  EG0    <- eg_from_lplus(Lplus0)
-  Hb0    <- hb_from_W(W_dis)
-
-  # [CORREGIDO] Use %dorng% for safe parallel iterations
-  tri_vals <- foreach(i = seq_len(p), .combine = "c") %dorng% {
-    # Cambio en pesos de la fila/columna i
-    delta_w        <- W_ref[i, ] - W_dis[i, ]
-    delta_w[i]     <- 0   # diagonal siempre 0
-
-    lp_i <- Lplus0[, i]      # columna i de L+
-    lp_row_i <- Lplus0[i, ]  # fila i de L+
-
-    # Cambio en diagonal del Laplaciano para nodo i
-    d_diag_i <- sum(delta_w)
-    col_i_weighted <- Lplus0 %*% delta_w          # p-vector
-    d_trace <- d_diag_i * lp_i[i] -
-               2 * sum(lp_row_i * delta_w) +
-               sum(delta_w * col_i_weighted[i, ])  # aproximacion rank-1
-
-    rbar_new <- 2 * (sum(diag(Lplus0)) - d_trace) / p
-    EGi      <- if (rbar_new < 1e-12) 0 else 1 / rbar_new
-
-    # Hb con la red rescatada
-    k_resc       <- rowSums(W_dis)
-    k_resc[i]    <- sum(W_ref[i, ])
-    k_resc[-i]   <- k_resc[-i] - W_dis[i, -i] + W_ref[i, -i]
-    prob_resc    <- k_resc / sum(k_resc)
-    Hbi          <- -sum(prob_resc * log(prob_resc + 1e-12))
-
-    (EGi - EG0) + (Hbi - Hb0)
+  m0    <- compute_metrics(W_dis)
+  vals  <- foreach(i = seq_along(common), .combine = "c",
+                   .packages = "igraph",
+                   .export = c("compute_metrics", "rescue_row")) %dop% {
+    m <- compute_metrics(rescue_row(W_dis, W_ref, i))
+    (m["EG"] - m0["EG"]) + (m["Hb"] - m0["Hb"])
   }
-  names(tri_vals) <- common
-  tri_vals
+  names(vals) <- common
+  vals
 }
 
-compute_KO_fast <- function(W_dis, common) {
-  W_dis  <- W_dis[common, common, drop = FALSE]
-  p      <- length(common)
-  Lplus0 <- laplacian_pseudoinverse(W_dis)
-  EG0    <- eg_from_lplus(Lplus0)
-
-  # [CORREGIDO] Use %dorng% for safe parallel iterations
-  ko_vals <- foreach(i = seq_len(p), .combine = "c") %dorng% {
-    # KO: eliminar toda conectividad del gen i
-    delta_w    <- -W_dis[i, ]; delta_w[i] <- 0
-    d_diag_i   <- sum(-delta_w)   # = sum(W_dis[i,-i])
-    col_i_weighted <- Lplus0 %*% (-delta_w)
-    d_trace <- d_diag_i * Lplus0[i, i] -
-               2 * sum(Lplus0[i, ] * (-delta_w)) +
-               sum((-delta_w) * col_i_weighted)
-    rbar_ko <- 2 * (sum(diag(Lplus0)) - d_trace) / p
-    EGi     <- if (rbar_ko < 1e-12) 0 else 1 / rbar_ko
-    EG0 - EGi
+compute_KO_exact <- function(W_dis, common) {
+  W_dis <- W_dis[common, common, drop = FALSE]
+  m0    <- compute_metrics(W_dis)
+  vals  <- foreach(i = seq_along(common), .combine = "c",
+                   .packages = "igraph",
+                   .export = c("compute_metrics", "knockout_row")) %dop% {
+    m <- compute_metrics(knockout_row(W_dis, i))
+    unname(m0["EG"] - m["EG"])
   }
-  names(ko_vals) <- common
-  ko_vals
+  names(vals) <- common
+  vals
 }
 
 # -----------------------------------------------------------------------------
 # Enriquecimiento funcional
 # -----------------------------------------------------------------------------
 
-enrich_gene_set <- function(genes, prefix) {
+# [FIX-enrich] GO y KEGG en tryCatch SEPARADOS: si KEGG falla (sin internet en HPC)
+# antes se perdia tambien el GO ya calculado. Universo = genes de la subred.
+enrich_gene_set <- function(genes, universe, prefix) {
+  eg <- tryCatch(suppressMessages(bitr(genes, fromType = "SYMBOL",
+                                       toType = "ENTREZID", OrgDb = org.Hs.eg.db)),
+                 error = function(e) NULL)
+  un <- tryCatch(suppressMessages(bitr(universe, fromType = "SYMBOL",
+                                       toType = "ENTREZID", OrgDb = org.Hs.eg.db)),
+                 error = function(e) NULL)
+  if (is.null(eg) || nrow(eg) < 10L) return(invisible(NULL))
   tryCatch({
-    eg  <- suppressMessages(bitr(genes, fromType = "SYMBOL",
-                                 toType = "ENTREZID", OrgDb = org.Hs.eg.db))
-    if (is.null(eg) || nrow(eg) < 10L) return(invisible(NULL))
-    ego <- suppressMessages(enrichGO(eg$ENTREZID, OrgDb = org.Hs.eg.db,
-                                     ont = "BP", pAdjustMethod = "BH",
-                                     readable = TRUE))
-    ekk <- suppressMessages(enrichKEGG(eg$ENTREZID, organism = "hsa",
-                                       pAdjustMethod = "BH"))
+    ego <- suppressMessages(enrichGO(eg$ENTREZID, universe = un$ENTREZID,
+                                     OrgDb = org.Hs.eg.db, ont = "BP",
+                                     pAdjustMethod = "BH", readable = TRUE))
     if (!is.null(ego) && nrow(as.data.frame(ego)) > 0)
       fwrite(as.data.frame(ego),
-             file.path("results/enrichment", paste0(prefix, "_GO.tsv")),
-             sep = "\t")
+             file.path("results/enrichment", paste0(prefix, "_GO.tsv")), sep = "\t")
+  }, error = function(e) message("  GO error (", prefix, "): ", e$message))
+  tryCatch({
+    ekk <- suppressMessages(enrichKEGG(eg$ENTREZID, universe = un$ENTREZID,
+                                       organism = "hsa", pAdjustMethod = "BH"))
     if (!is.null(ekk) && nrow(as.data.frame(ekk)) > 0)
       fwrite(as.data.frame(ekk),
-             file.path("results/enrichment", paste0(prefix, "_KEGG.tsv")),
-             sep = "\t")
-  }, error = function(e) {
-    message("  Enrichment error (", prefix, "): ", e$message)
-  })
+             file.path("results/enrichment", paste0(prefix, "_KEGG.tsv")), sep = "\t")
+  }, error = function(e) message("  KEGG error (", prefix, "): ", e$message,
+                                  " (requiere acceso a rest.kegg.jp)"))
 }
 
 # -----------------------------------------------------------------------------
@@ -306,11 +266,11 @@ for (acc in targets) {
   W_dis  <- nets[[last]]
   common <- intersect(rownames(W_ref), rownames(W_dis))
 
-  message("  TRI (rank-1 approx, ", length(common), " genes)...")
-  tri_vec <- compute_TRI_fast(W_dis, W_ref, common)
+  message("  TRI (recalculo exacto, ", length(common), " genes)...")
+  tri_vec <- compute_TRI_exact(W_dis, W_ref, common)
 
-  message("  KO-support (rank-1 approx, ", length(common), " genes)...")
-  ko_vec  <- compute_KO_fast(W_dis, common)
+  message("  KO-support (recalculo exacto, ", length(common), " genes)...")
+  ko_vec  <- compute_KO_exact(W_dis, common)
 
   out <- df |>
     inner_join(data.frame(gene = names(tri_vec), TRI = zscore(tri_vec)),
@@ -348,9 +308,9 @@ for (acc in targets) {
          sep = "\t")
 
   message("  Enriquecimiento funcional...")
-  enrich_gene_set(top_trans$gene, paste0(acc, "_transition"))
-  enrich_gene_set(top_irrev$gene, paste0(acc, "_irreversibility"))
-  enrich_gene_set(top_resc$gene,  paste0(acc, "_rescue"))
+  enrich_gene_set(top_trans$gene, out$gene, paste0(acc, "_transition"))
+  enrich_gene_set(top_irrev$gene, out$gene, paste0(acc, "_irreversibility"))
+  enrich_gene_set(top_resc$gene,  out$gene, paste0(acc, "_rescue"))
 
   all_top[[acc]] <- dplyr::bind_rows(
     dplyr::mutate(top_trans, score_type = "PTI", accession = acc),
