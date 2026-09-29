@@ -77,7 +77,7 @@ T3cD samples in GSE76895 are excluded. NGT in GSE27951 is treated as the healthy
                 ▼                                                               │
 04_gene_drivers_and_enrichment.R                                                │
         │  Node metrics: strength, eigencentrality, participation               │
-        │  PTI, IRI, TRI (exact per-gene recomputation)                       │
+        │  PTI, IRI, TRI (exact per-gene recomputation)                         │
         │  KO-support; GO:BP + KEGG enrichment (top-50)                         │
         └─ results/gene_drivers/, results/enrichment/                           │
                 │                                                               │
