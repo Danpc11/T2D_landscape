@@ -77,7 +77,7 @@ T3cD samples in GSE76895 are excluded. NGT in GSE27951 is treated as the healthy
                 ▼                                                               │
 04_gene_drivers_and_enrichment.R                                                │
         │  Node metrics: strength, eigencentrality, participation               │
-        │  PTI, IRI, TRI (Sherman-Morrison rank-1 update)                       │
+        │  PTI, IRI, TRI (exact per-gene recomputation)                       │
         │  KO-support; GO:BP + KEGG enrichment (top-50)                         │
         └─ results/gene_drivers/, results/enrichment/                           │
                 │                                                               │
@@ -133,19 +133,23 @@ T3cD samples in GSE76895 are excluded. NGT in GSE27951 is treated as the healthy
 
 These invariants are enforced identically across all scripts and both branches:
 
-**Effective resistance (corrected):**
+**Effective resistance:**
 ```
-R̄ = 2·tr(L⁺)/p
+R̄ = 2·tr(L⁺)/(p−1)
 ```
-Previous versions used `/(p−1)`, overestimating by a factor of p. Derivation: `R̄ = (2/p(p−1)) · (p−1) · tr(L⁺) = 2·tr(L⁺)/p`.
+Derivation: Kirchhoff index Kf = Σ_{i<j} R_ij = p·tr(L⁺); mean over the p(p−1)/2 pairs gives 2·tr(L⁺)/(p−1). (An earlier "correction" to `/p` was wrong; numerically the difference is (p−1)/p.)
 
-**Soft-thresholding power (β):** Selected once per state from the bicor matrix by maximizing scale-free fit R² ≥ 0.80 over β ∈ {1,…,20}. Fallback to β = 6 if no β achieves R² ≥ 0.80. Fixed across all bootstrap and permutation iterations — never re-optimized per resample.
+**Global efficiency:** EG = mean over pairs of 1/d_ij (a spurious ×2 factor was removed).
 
-**Constructal optimum (first-order approximation):**
+**Cross-tissue coherence (cellular sheaf):** see `python/sheaf_coherence.py` and `CHANGES.md`. Stalks are aligned spectral embeddings of each tissue's network; restriction maps are O(r) Procrustes rotations; the sheaf energy per stage measures how tissue-specific the network reorganization is.
+
+**Soft-thresholding power (β):** Selected once **per dataset** on the healthy reference state as the smallest β ∈ {1,…,20} with scale-free fit R² ≥ 0.80 (WGCNA convention); fallback β = 6. The same β is used for every state, bootstrap and permutation of that dataset, so that metrics compare biology rather than β.
+
+**Configuration-model reference (formerly "constructal optimum"):**
 ```
 W*ᵢⱼ ∝ (kᵢ · kⱼ)^(1/α),  subject to Σᵢ<ⱼ (Wᵢⱼ)^α = C
 ```
-where kᵢ are nodal strengths of the healthy reference network and C is its wiring budget. Analytically derived first-order optimum of the Lagrangian `max EG s.t. cost = C`.
+where kᵢ are nodal strengths of the healthy reference network and C is its wiring budget. Up to the exponent this is the weighted configuration (Chung–Lu) model: the network with the same strength sequence and no structure. Deviation from it therefore measures the amount of structure (modularity), and the pipeline also reports every metric relative to this null (`*_rel`) to separate structure from density.
 
 **CEI (global z-score):** Always computed across all datasets and states jointly, never within a single dataset. This ensures cross-dataset comparability of sign and magnitude.
 
@@ -161,9 +165,9 @@ where kᵢ are nodal strengths of the healthy reference network and C is its wir
 
 **Rank-percentile for combined_score:** Min-max scaling introduces an edge artifact where the gene with the lowest topological score always gets `combined_score = 0` regardless of |logFC|. Rank normalization to [0,1] is monotonic, has no edge artifacts, and maps naturally to "topological percentile × DE magnitude."
 
-**TRI/KO complexity:** Rank-1 update of the Laplacian pseudoinverse (Sherman-Morrison) reduces complexity from O(p⁴) to O(p²) per gene. Equivalent to full pseudoinverse recomputation to first order in Δw.
+**TRI/KO:** Computed by exact recomputation per gene (EG+Hb in the shared branch, p ≤ 800; R̄+Hb in the full branch, p ≤ 1500). The earlier "rank-1 Sherman–Morrison update" was invalid (ΔL is not rank 1) and was removed. These scores are topological sensitivities of the correlation network to a node, not causal rescue/knock-out evidence.
 
-**Gbar and Rbar on top-3000 hub genes (02b):** For p = 14,676, `eigen(L, only.values=TRUE)` requires ~1.1T floating-point operations (~10 min). Restricting to the top-3,000 genes by weighted degree (strength) reduces this to ~27B ops (~3 seconds) with <5% empirical error, as spectral properties are dominated by hub connectivity.
+**Gbar and Rbar on top-3000 hub genes (02b):** Both are computed with a full eigendecomposition on the top-3,000-strength subnetwork (seconds). Spectral truncation was removed: the spectrum of D⁻¹ᐟ²WD⁻¹ᐟ² lies in [−1, 1], so exp(λ) does not decay and truncating to k eigenvectors gives 30–50 % error.
 
 ---
 
@@ -300,6 +304,10 @@ Gene classes (mutually exclusive, evaluated in priority order):
 - All scripts accept dataset targets as command-line arguments for partial re-runs
 
 ---
+
+## Sample-size and design caveats
+
+Metrics are also reported at equal n within each dataset (`*_sub`), since smaller groups yield noisier correlations and therefore denser networks. GSE15653 (n = 5/4/9) is excluded from the intermediate-state question. Power analysis for the sheaf coherence analysis with the real group sizes is in `python/simulation/power_curve.py`.
 
 ## Author 
 
