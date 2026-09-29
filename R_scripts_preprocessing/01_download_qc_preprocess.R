@@ -88,32 +88,56 @@ extract_gene_symbols <- function(eset, accession) {
   
   probe_ids <- rownames(exprs(eset))
   
-  # 2. Plan B.1: detect Ensembl-based custom CDFs (the GSE18732 case)
+  # 2. Plan B.1: detect Ensembl-based custom CDFs (the GSE18732 case, GPL9486)
+  #    [FIX-ensembl] Los IDs son transcritos ENST de un Ensembl antiguo (2009).
+  #    org.Hs.eg.db solo mapea ~8% de ellos (1951/25770). Se usa EnsDb
+  #    (GRCh37, Ensembl 75) que conserva los ENST antiguos: transcrito -> gen
+  #    -> simbolo. Fallback: org.Hs.eg.db. Se reporta la tasa de mapeo.
   if (any(grepl("ENST|ENSG", head(probe_ids, 100)) | grepl("ENST|ENSG", tail(probe_ids, 100)))) {
-    message("  ->   -> Detected Ensembl custom CDF in ", accession, ". mapping with org.Hs.eg.db...")
-    
-    if (!requireNamespace("org.Hs.eg.db", quietly = TRUE)) {
-      warning("Missing package 'org.Hs.eg.db'. Returning original IDs.")
-      return(probe_ids)
+    message("  ->   -> Detected Ensembl custom CDF in ", accession, ".")
+    clean_ids <- sub("_(at|st)$", "", probe_ids)
+    clean_ids <- sub("\\.[0-9]+$", "", clean_ids)          # quitar version (ENST...\.3)
+    is_tx     <- any(grepl("^ENST", clean_ids))
+    mapped    <- rep(NA_character_, length(clean_ids))
+
+    if (requireNamespace("EnsDb.Hsapiens.v75", quietly = TRUE)) {
+      message("  ->   -> Mapping with EnsDb.Hsapiens.v75 (GRCh37)...")
+      edb <- EnsDb.Hsapiens.v75::EnsDb.Hsapiens.v75
+      keys_ok <- unique(clean_ids[grepl("^ENS[TG]", clean_ids)])
+      tab <- tryCatch(suppressMessages(AnnotationDbi::select(
+               edb, keys = keys_ok, keytype = if (is_tx) "TXID" else "GENEID",
+               columns = c("GENEID", "SYMBOL"))), error = function(e) NULL)
+      if (!is.null(tab) && nrow(tab) > 0) {
+        keycol <- if (is_tx) "TXID" else "GENEID"
+        tab <- tab[!is.na(tab$SYMBOL) & tab$SYMBOL != "", ]
+        tab <- tab[!duplicated(tab[[keycol]]), ]
+        mapped <- tab$SYMBOL[match(clean_ids, tab[[keycol]])]
+      }
+    } else {
+      message("  ->   -> EnsDb.Hsapiens.v75 no instalado ",
+              "(BiocManager::install('EnsDb.Hsapiens.v75')); se usara org.Hs.eg.db")
     }
-    
-    # Clean Brainarray suffixes (e.g., ENST00000123_at -> ENST00000123)
-    clean_ids <- sub("_at$", "", probe_ids)
-    clean_ids <- sub("_st$", "", clean_ids)
-    
-    # Determine whether IDs are transcripts (ENST) or genes (ENSG)
-    key_type <- ifelse(any(grepl("ENST", clean_ids)), "ENSEMBLTRANS", "ENSEMBL")
-    
-    mapped_symbols <- suppressMessages(
-      AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db,
-                            keys = clean_ids,
-                            column = "SYMBOL",
-                            keytype = key_type,
-                            multiVals = "first")
-    )
-    return(unname(mapped_symbols))
+
+    # Fallback para lo que quede sin mapear
+    if (requireNamespace("org.Hs.eg.db", quietly = TRUE) && any(is.na(mapped))) {
+      todo <- which(is.na(mapped) & grepl("^ENS[TG]", clean_ids))
+      if (length(todo) > 0) {
+        m2 <- suppressMessages(AnnotationDbi::mapIds(
+                org.Hs.eg.db::org.Hs.eg.db, keys = clean_ids[todo], column = "SYMBOL",
+                keytype = if (is_tx) "ENSEMBLTRANS" else "ENSEMBL", multiVals = "first"))
+        mapped[todo] <- unname(m2)
+      }
+    }
+
+    n_map <- sum(!is.na(mapped))
+    message("  ->   -> ", accession, ": mapeados ", n_map, " de ", length(mapped),
+            " probes (", round(100 * n_map / length(mapped), 1), "%), ",
+            length(unique(na.omit(mapped))), " simbolos unicos")
+    if (n_map / length(mapped) < 0.5)
+      warning(accession, ": tasa de mapeo < 50%. Instala EnsDb.Hsapiens.v75.")
+    return(unname(mapped))
   }
-  
+
   # 3. Plan B.2: classic Affymetrix without annotation
   message("  ->   -> No annotation column found in ", accession, ". trying mapping with hthgu133a.db...")
   if (!requireNamespace("hthgu133a.db", quietly = TRUE)) {
