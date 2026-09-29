@@ -85,8 +85,8 @@ state_orders <- list(
   GSE27951 = c("NGT",  "IGT", "T2D")
 )
 
-n_boot <- 100L    # bootstrap: IC de las 4 metricas (EG, Gbar, Rbar, Hb)
-n_perm <- 1000L   # permutaciones: p_min=0.001 | ~5-10 min con 40 workers
+n_boot <- as.integer(Sys.getenv("N_BOOT", unset = "100"))    # bootstrap: IC de las 4 metricas (EG, Gbar, Rbar, Hb)
+n_perm <- as.integer(Sys.getenv("N_PERM", unset = "1000"))   # permutaciones: p_min=0.001 | ~5-10 min con 40 workers
 message("Bootstrap: ", n_boot, " iter | Permutaciones: ", n_perm, " iter")
 
 # -----------------------------------------------------------------------------
@@ -97,7 +97,10 @@ if (!file.exists(hv_path)) {
   stop("'high_variance_genes.rds' no encontrado. Ejecuta primero el script 01.")
 }
 hv_genes_global    <- readRDS(hv_path)
-fixed_genes_global <- hv_genes_global[seq_len(min(800L, length(hv_genes_global)))]
+# [FIX-consistency] misma subred que 02 (guardada por 02); fallback a top-800
+fixed_genes_global <- if (file.exists("results/networks/fixed_subnetwork_genes.rds")) {
+  readRDS("results/networks/fixed_subnetwork_genes.rds")
+} else hv_genes_global[seq_len(min(800L, length(hv_genes_global)))]
 message("Subred fija: ", length(fixed_genes_global), " genes")
 
 # =============================================================================
