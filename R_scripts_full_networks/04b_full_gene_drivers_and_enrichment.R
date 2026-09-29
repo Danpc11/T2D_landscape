@@ -3,6 +3,11 @@
 # 04b_full_gene_drivers_and_enrichment.R
 # Análisis a nivel de gen (drivers) para redes COMPLETAS (Rama Full).
 #
+# [FIX-TRI-exact] TRI/KO por recalculo exacto de Rbar (ver funciones).
+# [FIX-enrich] GO/KEGG independientes.
+# NOTA: 02b guarda ahora W como subred top-3000 por estado; reduce_networks_consistent
+#       toma la interseccion entre estados (tipicamente 2000-2800 genes).
+#
 # LÓGICA DE PARALELIZACIÓN (Estilo 02b):
 #   - Se usa mclapply (Forking) en lugar de PSOCK/foreach.
 #   - Copy-On-Write (COW): Los 40 workers leen las matrices masivas (W_dis, V)
@@ -164,141 +169,52 @@ node_metrics_fast <- function(W, beta = NULL, min_cor = NULL) {
 }
 
 # -----------------------------------------------------------------------------
-# Factores de la pseudoinversa del Laplaciano
+# [FIX-TRI-exact] TRI y KO por RECALCULO EXACTO de Rbar (y Hb).
+# La actualizacion "rank-1" anterior no era valida (dL = diag(dk) - dW no es
+# rango 1 y la formula no era la expansion de primer orden; error ~30x en
+# simulacion). Para p = 1500, eigen(L, only.values=TRUE) ~0.3-0.5 s/gen, en
+# paralelo con mclapply (COW) es viable.
+# Definiciones (rama full; en la rama shared con p<=800 se usa EG exacto):
+#   TRI_i = [Rbar(W_dis) - Rbar(W_dis rescatada en i)] / Rbar(W_dis) + [Hb_resc - Hb_dis]
+#   KO_i  = [Rbar(W_dis KO i) - Rbar(W_dis)] / Rbar(W_dis)   (>0: el gen sostiene la red)
 # -----------------------------------------------------------------------------
-laplacian_pseudoinverse_factors <- function(W) {
-  p <- nrow(W)
-  L <- diag(rowSums(W), p) - W
-
-  message("      eigen(L) completo: ", p, " x ", p)
-  eig <- eigen(L, symmetric = TRUE)
-
-  tol <- max(abs(eig$values)) * p * 1e-10
-  inv_vals <- ifelse(abs(eig$values) > tol, 1 / eig$values, 0)
-
-  list(
-    V = eig$vectors,
-    invD = inv_vals
-  )
+rbar_exact <- function(W) {
+  p   <- nrow(W)
+  lam <- eigen(diag(rowSums(W), p) - W, symmetric = TRUE, only.values = TRUE)$values
+  tol <- max(abs(lam)) * p * 1e-10
+  2 * sum(ifelse(lam > tol, 1 / lam, 0)) / (p - 1)
 }
 
-# diag(L+) = rowSums(V^2 * invD)
-get_Lplus_diag_fast <- function(V, invD) {
-  rowSums(sweep(V^2, 2, invD, `*`))
-}
-
-# -----------------------------------------------------------------------------
-# TRI optimizado
-# -----------------------------------------------------------------------------
-compute_TRI_fast_hpc <- function(W_dis, W_ref, common, n_workers_inner = 1L) {
+reduce_common_tri <- function(W_dis, common) {
   if (length(common) > MAX_GENES_TRI) {
-    k_tri <- rowSums(W_dis[common, common, drop = FALSE])
+    k_tri  <- rowSums(W_dis[common, common, drop = FALSE])
     common <- names(sort(k_tri, decreasing = TRUE))[seq_len(MAX_GENES_TRI)]
   }
-
-  W_dis <- W_dis[common, common, drop = FALSE]
-  W_ref <- W_ref[common, common, drop = FALSE]
-  p <- length(common)
-
-  Lplus_fact <- laplacian_pseudoinverse_factors(W_dis)
-  V <- Lplus_fact$V
-  invD <- Lplus_fact$invD
-
-  # Precomputación eficiente: cada columna de V multiplicada por invD_j
-  VD <- sweep(V, 2, invD, `*`)
-
-  tr_Lplus0  <- sum(invD)
-  Rbar0      <- 2 * tr_Lplus0 / p
-  EG0        <- if (Rbar0 < 1e-12) 0 else 1 / Rbar0
-  Hb0        <- hb_from_W(W_dis)
-  Lplus_diag <- get_Lplus_diag_fast(V, invD)
-
-  k_dis <- rowSums(W_dis)
-  diag_sum_ref <- rowSums(W_ref)
-
-  tri_list <- mclapply(seq_len(p), function(i) {
-    delta_w <- W_ref[i, ] - W_dis[i, ]
-    delta_w[i] <- 0
-
-    # fila i de L+ = VD[i, ] %*% t(V)
-    lp_i <- as.vector(VD[i, , drop = FALSE] %*% t(V))
-
-    # L+ %*% delta_w = V %*% (invD * (t(V) %*% delta_w))
-    tmp <- as.vector(crossprod(V, delta_w))
-    col_iw <- as.vector(V %*% (invD * tmp))
-
-    d_diag_i <- sum(delta_w)
-
-    d_trace <- d_diag_i * Lplus_diag[i] -
-      2 * sum(lp_i * delta_w) +
-      sum(delta_w * col_iw)
-
-    rbar_new <- 2 * (tr_Lplus0 - d_trace) / p
-    EGi <- if (rbar_new < 1e-12) 0 else 1 / rbar_new
-
-    k_resc <- k_dis
-    k_resc[i] <- diag_sum_ref[i]
-    k_resc[-i] <- k_resc[-i] - W_dis[i, -i] + W_ref[i, -i]
-
-    prob_r <- k_resc / sum(k_resc)
-    Hbi <- -sum(prob_r * log(prob_r + 1e-12))
-
-    (EGi - EG0) + (Hbi - Hb0)
-  }, mc.cores = n_workers_inner)
-
-  tri_vals <- unlist(tri_list)
-  names(tri_vals) <- common
-  tri_vals
+  common
 }
 
-# -----------------------------------------------------------------------------
-# KO optimizado
-# -----------------------------------------------------------------------------
-compute_KO_fast_hpc <- function(W_dis, common, n_workers_inner = 1L) {
-  if (length(common) > MAX_GENES_TRI) {
-    k_tri <- rowSums(W_dis[common, common, drop = FALSE])
-    common <- names(sort(k_tri, decreasing = TRUE))[seq_len(MAX_GENES_TRI)]
-  }
-
-  W_dis <- W_dis[common, common, drop = FALSE]
-  p <- length(common)
-
-  Lplus_fact <- laplacian_pseudoinverse_factors(W_dis)
-  V <- Lplus_fact$V
-  invD <- Lplus_fact$invD
-
-  VD <- sweep(V, 2, invD, `*`)
-
-  tr_Lplus0  <- sum(invD)
-  Rbar0      <- 2 * tr_Lplus0 / p
-  EG0        <- if (Rbar0 < 1e-12) 0 else 1 / Rbar0
-  Lplus_diag <- get_Lplus_diag_fast(V, invD)
-
-  ko_list <- mclapply(seq_len(p), function(i) {
-    delta_w <- -W_dis[i, ]
-    delta_w[i] <- 0
-
-    neg_delta <- -delta_w
-
-    lp_i <- as.vector(VD[i, , drop = FALSE] %*% t(V))
-    tmp <- as.vector(crossprod(V, neg_delta))
-    col_iw <- as.vector(V %*% (invD * tmp))
-
-    d_diag_i <- sum(neg_delta)
-
-    d_trace <- d_diag_i * Lplus_diag[i] -
-      2 * sum(lp_i * neg_delta) +
-      sum(neg_delta * col_iw)
-
-    rbar_ko <- 2 * (tr_Lplus0 - d_trace) / p
-    EGi <- if (rbar_ko < 1e-12) 0 else 1 / rbar_ko
-
-    EG0 - EGi
+compute_TRI_exact_hpc <- function(W_dis, W_ref, common, n_workers_inner = 1L) {
+  common <- reduce_common_tri(W_dis, common)
+  W_dis  <- W_dis[common, common, drop = FALSE]
+  W_ref  <- W_ref[common, common, drop = FALSE]
+  R0 <- rbar_exact(W_dis); H0 <- hb_from_W(W_dis)
+  vals <- mclapply(seq_along(common), function(i) {
+    W <- W_dis; W[i, ] <- W_ref[i, ]; W[, i] <- W_ref[, i]; W[i, i] <- 0
+    (R0 - rbar_exact(W)) / R0 + (hb_from_W(W) - H0)
   }, mc.cores = n_workers_inner)
+  setNames(unlist(vals), common)
+}
 
-  ko_vals <- unlist(ko_list)
-  names(ko_vals) <- common
-  ko_vals
+compute_KO_exact_hpc <- function(W_dis, common, n_workers_inner = 1L) {
+  common <- reduce_common_tri(W_dis, common)
+  W_dis  <- W_dis[common, common, drop = FALSE]
+  R0 <- rbar_exact(W_dis)
+  vals <- mclapply(seq_along(common), function(i) {
+    W <- W_dis; W[i, ] <- 0; W[, i] <- 0
+    # el nodo aislado se excluye del calculo (su componente tendria R infinita)
+    (rbar_exact(W[-i, -i]) - R0) / R0
+  }, mc.cores = n_workers_inner)
+  setNames(unlist(vals), common)
 }
 
 # -----------------------------------------------------------------------------
@@ -318,7 +234,7 @@ safe_enrich_robust <- function(genes, universe_genes, prefix) {
     if (is.null(eg) || nrow(eg) < 10L) return(FALSE)
     if (is.null(univ) || nrow(univ) < 10L) return(FALSE)
 
-    ego <- suppressMessages(
+    ego <- tryCatch(suppressMessages(
       enrichGO(
         gene = eg$ENTREZID,
         universe = univ$ENTREZID,
@@ -328,9 +244,10 @@ safe_enrich_robust <- function(genes, universe_genes, prefix) {
         pvalueCutoff = 0.05,
         readable = TRUE
       )
-    )
+    ), error = function(e) { message("  GO error: ", conditionMessage(e)); NULL })
 
-    ekk <- suppressMessages(
+    # [FIX-enrich] KEGG en su propio tryCatch (requiere internet)
+    ekk <- tryCatch(suppressMessages(
       enrichKEGG(
         gene = eg$ENTREZID,
         universe = univ$ENTREZID,
@@ -338,7 +255,7 @@ safe_enrich_robust <- function(genes, universe_genes, prefix) {
         pAdjustMethod = "BH",
         pvalueCutoff = 0.05
       )
-    )
+    ), error = function(e) { message("  KEGG error: ", conditionMessage(e)); NULL })
 
     if (!is.null(ego) && nrow(as.data.frame(ego)) > 0) {
       fwrite(as.data.frame(ego),
@@ -428,8 +345,8 @@ process_dataset <- function(acc, workers_per_dataset = 1L) {
 
   message("  TRI y KO-support (", length(common), " genes comunes; límite TRI=", MAX_GENES_TRI, ")...")
 
-  tri_vec <- compute_TRI_fast_hpc(W_dis, W_ref, common, n_workers_inner = workers_per_dataset)
-  ko_vec  <- compute_KO_fast_hpc(W_dis, common, n_workers_inner = workers_per_dataset)
+  tri_vec <- compute_TRI_exact_hpc(W_dis, W_ref, common, n_workers_inner = workers_per_dataset)
+  ko_vec  <- compute_KO_exact_hpc(W_dis, common, n_workers_inner = workers_per_dataset)
 
   out <- df |>
     inner_join(data.frame(gene = names(tri_vec), TRI = zscore(tri_vec)), by = "gene") |>
