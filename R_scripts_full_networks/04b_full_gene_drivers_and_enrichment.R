@@ -17,8 +17,6 @@ suppressPackageStartupMessages({
   library(data.table)
   library(dplyr)
   library(igraph)
-  library(clusterProfiler)
-  library(org.Hs.eg.db)
   library(parallel)
 })
 
@@ -67,6 +65,10 @@ state_orders <- list(
 # -----------------------------------------------------------------------------
 # Parámetros de reducción
 # -----------------------------------------------------------------------------
+HAS_ENRICH <- requireNamespace("clusterProfiler", quietly = TRUE) &&
+              requireNamespace("org.Hs.eg.db", quietly = TRUE)
+if (HAS_ENRICH) suppressPackageStartupMessages({ library(clusterProfiler); library(org.Hs.eg.db) })
+if (!HAS_ENRICH) message("clusterProfiler/org.Hs.eg.db no disponibles: se omite el enriquecimiento")
 MAX_GENES_NODE <- as.integer(Sys.getenv("MAX_GENES_NODE", unset = "3000"))
 MAX_GENES_TRI  <- as.integer(Sys.getenv("MAX_GENES_TRI",  unset = "1500"))
 MIN_COR        <- as.numeric(Sys.getenv("MIN_COR", unset = "0.2"))   # legacy, no usado en node_metrics
@@ -221,6 +223,7 @@ compute_KO_exact_hpc <- function(W_dis, common, n_workers_inner = 1L) {
 # Enriquecimiento
 # -----------------------------------------------------------------------------
 safe_enrich_robust <- function(genes, universe_genes, prefix) {
+  if (!HAS_ENRICH) return(invisible(NULL))
   tryCatch({
     suppressWarnings({
       eg <- suppressMessages(
