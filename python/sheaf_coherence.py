@@ -16,6 +16,8 @@ rotaciones O(r) (Procrustes) que alinean cada embedding a una referencia comun.
 
 Energia del haz por estadio:
     E_s      = sum_{t<u} ||X_ts - X_us||_F^2 / sum_t ||X_ts||_F^2
+    (como las columnas de X_ts son ortonormales, E_s = 2*(1 - solapamiento medio
+     de subespacios entre tejidos): es una distancia de Grassmann normalizada)
     E^Delta_s= igual, sobre los CAMBIOS respecto al sano: D_ts = X_ts - X_t0
 Score por gen (incoherencia cross-tejido):
     c_i(s)   = sum_t ||D_ts[i] - mean_t D_ts[i]||^2   (varianza entre tejidos)
@@ -120,6 +122,10 @@ def sheaf_energy(stalks):
               for t in range(T) for u in range(t + 1, T))
     den = sum((S ** 2).sum() for S in stalks) + 1e-300
     return num / den
+
+def bh_fdr(p):
+    p = np.asarray(p); n = p.size; o = np.argsort(p); ranked = p[o] * n / (np.arange(n) + 1)
+    q = np.minimum.accumulate(ranked[::-1])[::-1]; out = np.empty(n); out[o] = np.minimum(q, 1); return out
 
 def gene_incoherence(stalks):
     A = np.stack(stalks, 0)                  # T x P x r
@@ -259,6 +265,7 @@ def run(data, genes, betas, n_by_tissue, r, reps, B, seed, tag, out_dir):
         gene_rows[f"incoherence_{STAGE_NAMES[s]}"] = obs
         gene_rows[f"z_{STAGE_NAMES[s]}"] = pz
         gene_rows[f"p_{STAGE_NAMES[s]}"] = pp
+        gene_rows[f"fdr_{STAGE_NAMES[s]}"] = bh_fdr(pp)
     gene_df = pd.DataFrame(gene_rows).sort_values(f"z_{STAGE_NAMES[1]}", ascending=False)
 
     os.makedirs(out_dir, exist_ok=True)
