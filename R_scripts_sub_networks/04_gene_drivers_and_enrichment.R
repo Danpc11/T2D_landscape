@@ -28,9 +28,6 @@ suppressPackageStartupMessages({
   library(data.table)
   library(dplyr)
   library(igraph)
-  library(clusterProfiler)
-  library(org.Hs.eg.db)
-  library(enrichplot)
   library(parallel)
   library(foreach)
   library(doParallel)
@@ -67,6 +64,12 @@ set.seed(1234)
 cl <- makeCluster(n_workers)
 registerDoParallel(cl)
 if (HAS_DORNG) registerDoRNG(1234)
+# [NEW] Enriquecimiento opcional: si faltan clusterProfiler/org.Hs.eg.db se omite
+# (los scores de drivers se calculan igual).
+HAS_ENRICH <- requireNamespace("clusterProfiler", quietly = TRUE) &&
+              requireNamespace("org.Hs.eg.db", quietly = TRUE)
+if (HAS_ENRICH) suppressPackageStartupMessages({ library(clusterProfiler); library(org.Hs.eg.db) })
+if (!HAS_ENRICH) message("clusterProfiler/org.Hs.eg.db no disponibles: se omite el enriquecimiento")
 # [FIX-dorng] %dorng% solo existe si doRNG esta instalado; antes el script fallaba sin el.
 `%dop%` <- if (HAS_DORNG) doRNG::`%dorng%` else foreach::`%dopar%`
 
@@ -186,6 +189,7 @@ compute_KO_exact <- function(W_dis, common) {
 # [FIX-enrich] GO y KEGG en tryCatch SEPARADOS: si KEGG falla (sin internet en HPC)
 # antes se perdia tambien el GO ya calculado. Universo = genes de la subred.
 enrich_gene_set <- function(genes, universe, prefix) {
+  if (!HAS_ENRICH) return(invisible(NULL))
   eg <- tryCatch(suppressMessages(bitr(genes, fromType = "SYMBOL",
                                        toType = "ENTREZID", OrgDb = org.Hs.eg.db)),
                  error = function(e) NULL)
