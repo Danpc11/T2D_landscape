@@ -211,7 +211,15 @@ permute_group_test <- function(expr, pheno, states, betas,
   expr2 <- expr[, pheno$.sample_id[keep], drop = FALSE]
   ph2   <- droplevels(pheno[keep, , drop = FALSE])
 
-  if (length(unique(ph2$condition)) < 2L || ncol(expr2) < 6L) {
+  # [FIX-min-n] cada grupo necesita >= 6 muestras: con n=4 hay 126 permutaciones
+  # distintas, bicor es ruido y ademas el worker puede caer con matrices degeneradas.
+  n_groups <- table(ph2$condition)[states]
+  if (length(unique(ph2$condition)) < 2L || any(is.na(n_groups)) || any(n_groups < 6L)) {
+    message("  -> Saltando permutacion (n por grupo < 6): ", states[1], "=", n_groups[1],
+            " vs ", states[2], "=", n_groups[2])
+    return(NULL)
+  }
+  if (FALSE) {
     message("  -> Saltando permutacion: ", states[1], " vs ", states[2])
     return(NULL)
   }
@@ -230,22 +238,34 @@ permute_group_test <- function(expr, pheno, states, betas,
   message("  Permutando: ", states[1], " vs ", states[2],
           " (", n_perm, " iter, EG+Hb)")
 
-  perm_diffs <- foreach(b          = seq_len(n_perm),
-                        .combine   = rbind,
-                        .packages  = c("WGCNA", "igraph", "Matrix"),
-                        .export    = c("build_network", "compute_metrics_perm")) %dopar% {
-    perm_cond <- sample(ph2$condition)
-    pm <- lapply(seq_along(states), function(j) {
-      s <- states[j]
-      compute_metrics_perm(
-        build_network(expr2[, ph2$.sample_id[perm_cond == s], drop = FALSE],
-                      betas[[s]], fixed_genes)
-      )
-    })
-    d   <- pm[[1]] - pm[[2]]
-    cei <- (pm[[1]]["EG"] + pm[[1]]["Hb"]) - (pm[[2]]["EG"] + pm[[2]]["Hb"])
-    c(d["EG"], d["Hb"], cei)
-  }
+  perm_diffs <- tryCatch({
+    perm_diffs <- foreach(b          = seq_len(n_perm),
+                          .combine   = rbind,
+                          .packages  = c("WGCNA", "igraph", "Matrix"),
+                          .export    = c("build_network", "compute_metrics_perm")) %dopar% {
+      perm_cond <- sample(ph2$condition)
+      pm <- lapply(seq_along(states), function(j) {
+        s <- states[j]
+        compute_metrics_perm(
+          build_network(expr2[, ph2$.sample_id[perm_cond == s], drop = FALSE],
+                        betas[[s]], fixed_genes)
+        )
+      })
+      d   <- pm[[1]] - pm[[2]]
+      cei <- (pm[[1]]["EG"] + pm[[1]]["Hb"]) - (pm[[2]]["EG"] + pm[[2]]["Hb"])
+      c(d["EG"], d["Hb"], cei)
+    }
+  }, error = function(e) {
+    # [FIX-worker] un worker PSOCK muerto invalida el cluster entero: se recrea y se
+    # salta este par en lugar de abortar todo el script.
+    message("  -> Error en permutacion ", states[1], " vs ", states[2], ": ", conditionMessage(e),
+            ". Recreando cluster y saltando el par.")
+    try(stopCluster(cl), silent = TRUE)
+    cl <<- makeCluster(n_workers); registerDoParallel(cl)
+    NULL
+  })
+  if (is.null(perm_diffs)) return(NULL)
+
   colnames(perm_diffs) <- c("EG", "Hb", "NOI")
 
   data.frame(
