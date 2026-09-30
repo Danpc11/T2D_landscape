@@ -45,6 +45,26 @@ suppressPackageStartupMessages({
   library(parallel)
 })
 
+# -----------------------------------------------------------------------------
+# [CLI] Banderas de linea de comandos: --nombre=valor (tienen prioridad sobre la
+# variable de entorno homonima, que se conserva por compatibilidad).
+#   Rscript script.R [--workers=32] [--n_boot=100] [...] [GSE... GSE...]
+# Los argumentos sin "--" son los accessions a procesar.
+# -----------------------------------------------------------------------------
+.cli_raw   <- commandArgs(trailingOnly = TRUE)
+.cli_flags <- grep("^--", .cli_raw, value = TRUE)
+cli_args   <- grep("^--", .cli_raw, value = TRUE, invert = TRUE)
+get_flag <- function(name, env = NULL, default) {
+  hit <- grep(paste0("^--", name, "="), .cli_flags, value = TRUE)
+  if (length(hit) > 0) return(sub(paste0("^--", name, "="), "", hit[1]))
+  if (!is.null(env)) { v <- Sys.getenv(env, unset = NA); if (!is.na(v) && nzchar(v)) return(v) }
+  as.character(default)
+}
+if (any(.cli_flags == "--help")) {
+  cat("Uso: Rscript", basename(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))),
+      "[--flag=valor ...] [GSE...]\nBanderas: ver cabecera del script (get_flag).\n"); quit(status = 0)
+}
+
 # RSpectra para eigendescomposicion truncada — OPCIONAL
 # Si no esta instalado el script usa eigen() base con fallback graceful.
 # Para instalarlo: install.packages("RSpectra")
@@ -75,14 +95,13 @@ options(stringsAsFactors = FALSE)
 # -----------------------------------------------------------------------------
 # Configuracion de paralelismo HPC
 # -----------------------------------------------------------------------------
-n_workers <- as.integer(Sys.getenv("N_WORKERS", unset = "40"))
+n_workers <- as.integer(get_flag("workers", "N_WORKERS", 40))
 
 dir.create("results/full_networks", recursive = TRUE, showWarnings = FALSE)
 dir.create("results/full_metrics",  recursive = TRUE, showWarnings = FALSE)
 dir.create("results/full_modules",  recursive = TRUE, showWarnings = FALSE)
 
-args    <- commandArgs(trailingOnly = TRUE)
-targets <- if (length(args) == 0) c("GSE76895", "GSE18732", "GSE15653", "GSE27951") else args
+targets <- if (length(cli_args) == 0) c("GSE76895", "GSE18732", "GSE15653", "GSE27951") else cli_args
 
 state_orders <- list(
   GSE76895 = c("ND", "IGT", "T2D"),
