@@ -316,7 +316,13 @@ permute_group_test <- function(expr, pheno, states, betas,
   # [FIX-export] recortar aqui para no serializar 14k genes a cada tarea
   expr2 <- expr[genes_fixed, pheno$.sample_id[keep], drop = FALSE]
   ph2   <- droplevels(pheno[keep, , drop = FALSE])
-  if (length(unique(ph2$condition)) < 2L || ncol(expr2) < 6L) return(NULL)
+  # [FIX-min-n] cada grupo necesita >= 6 muestras (ver 03)
+  n_groups <- table(ph2$condition)[states]
+  if (length(unique(ph2$condition)) < 2L || any(is.na(n_groups)) || any(n_groups < 6L)) {
+    message("  -> Saltando permutacion (n por grupo < 6): ", states[1], "=", n_groups[1],
+            " vs ", states[2], "=", n_groups[2])
+    return(NULL)
+  }
 
   message("  Permutacion: ", states[1], " vs ", states[2],
           " (", n_perm, " iter, metricas: EG+Hb)")
@@ -337,27 +343,37 @@ permute_group_test <- function(expr, pheno, states, betas,
   obs_CEI  <- (obs[[1]]["EG"] + obs[[1]]["Hb"]) -
               (obs[[2]]["EG"] + obs[[2]]["Hb"])
 
-  perm_diffs <- foreach(b          = seq_len(n_perm),
-                        .combine   = rbind,
-                        .packages  = c("WGCNA", "igraph", "Matrix"),
-                        .export    = c("build_full_network_boot",
-                                       "compute_metrics_perm",
-                                       "compute_EG_fast", "compute_Hb_fast",
-                                       "nth_largest", "HAS_RSPECTRA")) %dopar% {
-    perm_cond <- sample(ph2$condition)
-    pm <- lapply(seq_along(states), function(j) {
-      s <- states[j]
-      compute_metrics_perm(
-        build_full_network_boot(
-          expr2[, ph2$.sample_id[perm_cond == s], drop = FALSE],
-          betas[[s]], genes_fixed
+  perm_diffs <- tryCatch({
+    perm_diffs <- foreach(b          = seq_len(n_perm),
+                          .combine   = rbind,
+                          .packages  = c("WGCNA", "igraph", "Matrix"),
+                          .export    = c("build_full_network_boot",
+                                         "compute_metrics_perm",
+                                         "compute_EG_fast", "compute_Hb_fast",
+                                         "nth_largest", "HAS_RSPECTRA")) %dopar% {
+      perm_cond <- sample(ph2$condition)
+      pm <- lapply(seq_along(states), function(j) {
+        s <- states[j]
+        compute_metrics_perm(
+          build_full_network_boot(
+            expr2[, ph2$.sample_id[perm_cond == s], drop = FALSE],
+            betas[[s]], genes_fixed
+          )
         )
-      )
-    })
-    d   <- pm[[1]] - pm[[2]]
-    cei <- (pm[[1]]["EG"] + pm[[1]]["Hb"]) - (pm[[2]]["EG"] + pm[[2]]["Hb"])
-    c(d["EG"], d["Hb"], cei)
-  }
+      })
+      d   <- pm[[1]] - pm[[2]]
+      cei <- (pm[[1]]["EG"] + pm[[1]]["Hb"]) - (pm[[2]]["EG"] + pm[[2]]["Hb"])
+      c(d["EG"], d["Hb"], cei)
+    }
+  }, error = function(e) {
+    message("  -> Error en permutacion ", states[1], " vs ", states[2], ": ", conditionMessage(e),
+            ". Recreando cluster y saltando el par.")   # [FIX-worker]
+    try(stopCluster(cl), silent = TRUE)
+    cl <<- makeCluster(n_workers); registerDoParallel(cl)
+    NULL
+  })
+  if (is.null(perm_diffs)) return(NULL)
+
   colnames(perm_diffs) <- c("EG", "Hb", "NOI")
 
   data.frame(
