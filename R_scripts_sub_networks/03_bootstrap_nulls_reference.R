@@ -130,27 +130,20 @@ message("Subred fija: ", length(fixed_genes_global), " genes")
 # Metricas completas: bootstrap y referencia de configuracion (Chung-Lu)
 compute_metrics <- function(W) {
   p    <- nrow(W)
-  k    <- rowSums(W)
-
-  g    <- graph_from_adjacency_matrix(W, mode = "undirected", weighted = TRUE,
-                                      diag = FALSE)
+  g    <- graph_from_adjacency_matrix(W, mode = "undirected", weighted = TRUE, diag = FALSE)
   Dg   <- distances(g, weights = 1 / (E(g)$weight + 1e-6))
   invD <- 1 / Dg; diag(invD) <- NA_real_
   EG   <- mean(invD[upper.tri(invD)], na.rm = TRUE)
-
-  Dinv <- diag(1 / sqrt(k + 1e-12), p)
-  Gbar <- mean(expm(Dinv %*% W %*% Dinv)[row(W) != col(W)])
-
-  L        <- diag(k, p) - W
-  eig      <- eigen(L, symmetric = TRUE)
-  tol      <- max(abs(eig$values)) * p * 1e-10
-  inv_vals <- ifelse(eig$values > tol, 1 / eig$values, 0)
-  Lplus    <- eig$vectors %*% diag(inv_vals, p) %*% t(eig$vectors)
-  Rbar     <- as.numeric(2 * sum(diag(Lplus)) / (p - 1))   # [FIX-Rbar-v2] media por par
-
-  prob <- k / sum(k)
-  Hb   <- -sum(prob * log(prob + 1e-12))
-
+  k    <- rowSums(W)
+  # [PERF] Gbar via eigen simetrico (sin expm); Rbar solo autovalores
+  Dinv <- 1 / sqrt(k + 1e-12); eigW <- eigen(W * outer(Dinv, Dinv), symmetric = TRUE)
+  ev   <- exp(eigW$values); cs <- colSums(eigW$vectors)
+  Gbar <- (sum(ev * cs^2) - sum(ev)) / (p * (p - 1))
+  lam  <- eigen(diag(k, p) - W, symmetric = TRUE, only.values = TRUE)$values
+  tol  <- max(abs(lam)) * p * 1e-10
+  Rbar <- 2 * sum(ifelse(lam > tol, 1 / lam, 0)) / (p - 1)   # [FIX-Rbar-v2]
+  pk   <- k / sum(k)
+  Hb   <- -sum(pk * log(pk + 1e-12))
   c(EG = EG, Gbar = Gbar, Rbar = Rbar, Hb = Hb)
 }
 
