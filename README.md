@@ -1,35 +1,31 @@
-# Constructal Architecture of the Transcriptome in Type 2 Diabetes
+# T2D Landscape
 
-## Theoretical Framework
+**Attractor landscape of the multi-tissue transcriptome in type 2 diabetes**
 
-### Central Hypothesis
+Healthy metabolic homeostasis and type 2 diabetes (T2D) are treated as two attractors of the multi-organ transcriptional system, with impaired glucose tolerance (IGT) as the transition state between them. The pipeline asks whether this bistability — predicted by physiological models of T2D (Topp et al. 2000; Ha, Satin & Sherman 2016) — leaves a measurable footprint in the tissue transcriptomes of four metabolically coupled organs, and whether the transition is a single-tissue event or a loss of coordination between tissues. Full framework and pre-specified predictions P0–P5: `THEORY.md`.
 
-Type 2 diabetes (T2D) progression is not a linear degradation of pancreatic islet function but a **topological phase transition**: the co-expression network undergoes a critical reorganization in which the impaired glucose tolerance (IGT) state represents maximum thermodynamic disorder (critical slowing down), and T2D represents a new low-modularity attractor. This hypothesis is tested simultaneously across four metabolically interconnected tissues.
+## Central objects
 
-### Constructal Theory Applied to Transcriptomics
+1. **Quasi-potential landscape** U(x) = −ln P(x) per tissue on a low-dimensional embedding of the transcriptome, conditioned on covariates (`python/landscape.py`): persistent basins (Morse theory / sublevel-set persistence), barrier asymmetry, critical-transition index, Fisher–Rao information along HbA1c/glucose, and the non-equilibrium flux J from a Schrödinger bridge between healthy and T2D distributions (Hodge decomposition of the inferred drift).
+2. **Cross-tissue coherence** via a cellular sheaf over the tissue graph (`python/sheaf_coherence.py`): stalks are aligned spectral embeddings of each tissue's coexpression network; the sheaf energy measures whether network reorganization is systemic or tissue-specific.
+3. **Network geometry of each attractor** (`R_scripts_*`): global efficiency, communicability, effective resistance, strength entropy and modularity of weighted bicor networks, reported at equal sample size and relative to a strength-preserving configuration null.
 
-Adrian Bejan's constructal law states that any finite-size flow system evolves its architecture over time to facilitate the access of its currents. Applied to gene co-expression networks, this means that healthy transcriptional programs should exhibit configurations that maximize information flow efficiency subject to a metabolic cost constraint. The pipeline operationalizes this through four complementary metrics:
+### Network metrics
 
-| Metric               | Symbol | Definition                                  | Constructal interpretation               |
-|----------------------|--------|---------------------------------------------|------------------------------------------|
-| Global efficiency    |  EG    | Mean inverse shortest path length           | Flow accessibility across the network    |
-| Communicability      |  Ḡ     | Mean off-diagonal entry of exp(D⁻¹/²WD⁻¹/²) | Propagation efficiency via all paths     |
-| Effective resistance |  R̄     | 2·tr(L⁺)/p                                  | Bottleneck cost of information transport |
-| Strength entropy     |  Hb    | −Σ pᵢ log pᵢ, pᵢ = kᵢ/Σkⱼ                   | Distributional evenness of connectivity  |
+| Metric               | Symbol | Definition                                  | Reading                                   |
+|----------------------|--------|---------------------------------------------|-------------------------------------------|
+| Global efficiency    |  EG    | Mean over pairs of 1/d_ij                   | Short-path accessibility                  |
+| Communicability      |  Ḡ     | Mean off-diagonal entry of exp(D⁻¹/²WD⁻¹/²) | All-path propagation                      |
+| Effective resistance |  R̄     | 2·tr(L⁺)/(p−1)                              | Redundancy / robustness to edge removal   |
+| Strength entropy     |  Hb    | −Σ pᵢ log pᵢ, pᵢ = kᵢ/Σkⱼ                   | Evenness of connectivity                  |
 
-The **Constructal Efficiency Index** (CEI) integrates all four into a single cross-dataset comparable score:
-
-```
-CEI = z(EG) + z(Ḡ) − z(R̄) + z(Hb)
-```
-
-where z(·) denotes global z-scoring across all datasets and states simultaneously, ensuring cross-tissue comparability.
+The **Network Organization Index** NOI = z(EG) + z(Ḡ) − z(R̄) + z(Hb) is computed on equal-n metrics; `NOI_rel` uses the metrics relative to the configuration null (structure, not density). These are descriptive of the attractors' geometry (prediction S in `THEORY.md`); the inferential predictions rest on the landscape and sheaf modules.
 
 ### Two-Branch Architecture
 
 The pipeline runs two parallel branches that address complementary scientific questions:
 
-**Shared branch (scripts 02–05):** Operates on a fixed subnetwork of up to 800 high-variance genes common to all four datasets. Enables direct cross-tissue comparison of constructal metrics and gene driver scores on identical nodes.
+**Shared branch (scripts 02–05):** Operates on a fixed subnetwork of up to 800 high-variance genes common to all four datasets. Enables direct cross-tissue comparison of network metrics and gene driver scores on identical nodes.
 
 **Full branch (scripts 02b–04b):** Operates on each dataset's complete transcriptome (p = 1,851–21,755 genes). Captures tissue-specific network architecture at full resolution, at the cost of losing cross-dataset node-level comparability.
 
@@ -60,24 +56,24 @@ T3cD samples in GSE76895 are excluded. NGT in GSE27951 is treated as the healthy
         ├── SHARED BRANCH ──────────────────────────────────────────────────────┐
         │                                                                       │
         ▼                                                                       │
-02_networks_modularity_constructal_metrics.R                                    │
+02_networks_modularity_metrics.R                                    │
         │  Fixed subnetwork (≤800 genes)                                        │
         │  bicor adjacency + WGCNA soft threshold                               │
-        │  EG, Ḡ, R̄, Hb, CEI (global z-score)                                   │
+        │  EG, Ḡ, R̄, Hb, NOI (global z-score)                                   │
         │  Modules: hclust + cutree, maximize n_mod × Q                         │
         └─ results/networks/, results/metrics/                                  │
                 │                                                               │
                 ▼                                                               │
-03_bootstrap_nulls_optimum.R                                                    │
+03_bootstrap_nulls_reference.R                                                    │
         │  Bootstrap n=100: IC for all 4 metrics                                │
         │  Permutation tests n=1000 (EG+Hb): p_min=0.001                        │
-        │  Constructal optimum: W* ∝ (kᵢkⱼ)^(1/α)                               │
-        └─ results/bootstrap/, results/nulls/, results/optimum/                 │
+        │  Configuration reference: W* ∝ (kᵢkⱼ)^(1/α)                               │
+        └─ results/bootstrap/, results/nulls/, results/reference/                 │
                 │                                                               │
                 ▼                                                               │
 04_gene_drivers_and_enrichment.R                                                │
         │  Node metrics: strength, eigencentrality, participation               │
-        │  PTI, IRI, TRI (exact per-gene recomputation)                         │
+        │  PTI, IRI, TRI (exact per-gene recomputation)                       │
         │  KO-support; GO:BP + KEGG enrichment (top-50)                         │
         └─ results/gene_drivers/, results/enrichment/                           │
                 │                                                               │
@@ -145,13 +141,13 @@ Derivation: Kirchhoff index Kf = Σ_{i<j} R_ij = p·tr(L⁺); mean over the p(p�
 
 **Soft-thresholding power (β):** Selected once **per dataset** on the healthy reference state as the smallest β ∈ {1,…,20} with scale-free fit R² ≥ 0.80 (WGCNA convention); fallback β = 6. The same β is used for every state, bootstrap and permutation of that dataset, so that metrics compare biology rather than β.
 
-**Configuration-model reference (formerly "constructal optimum"):**
+**Configuration-model reference (formerly "configuration reference"):**
 ```
 W*ᵢⱼ ∝ (kᵢ · kⱼ)^(1/α),  subject to Σᵢ<ⱼ (Wᵢⱼ)^α = C
 ```
 where kᵢ are nodal strengths of the healthy reference network and C is its wiring budget. Up to the exponent this is the weighted configuration (Chung–Lu) model: the network with the same strength sequence and no structure. Deviation from it therefore measures the amount of structure (modularity), and the pipeline also reports every metric relative to this null (`*_rel`) to separate structure from density.
 
-**CEI (global z-score):** Always computed across all datasets and states jointly, never within a single dataset. This ensures cross-dataset comparability of sign and magnitude.
+**NOI (global z-score):** Always computed across all datasets and states jointly, never within a single dataset. This ensures cross-dataset comparability of sign and magnitude.
 
 ---
 
@@ -215,8 +211,8 @@ BiocManager::install(c(
 Rscript 01_download_qc_preprocess.R
 
 # 2a. Shared branch (sequential)
-Rscript 02_networks_modularity_constructal_metrics.R
-Rscript 03_bootstrap_nulls_optimum.R
+Rscript 02_networks_modularity_metrics.R
+Rscript 03_bootstrap_nulls_reference.R
 Rscript 04_gene_drivers_and_enrichment.R
 
 # 2b. Full branch (HPC; can run in parallel with 2a)
@@ -240,13 +236,13 @@ Individual datasets can be targeted: `Rscript 02_networks.R GSE76895 GSE18732`
 ```
 results/
 ├── qc/                         # Sample counts, phenotype tables, gene lists
-├── metrics/                    # Shared: EG, Ḡ, R̄, Hb, CEI per state
+├── metrics/                    # Shared: EG, Ḡ, R̄, Hb, NOI per state
 ├── full_metrics/               # Full: same metrics at full resolution
 ├── networks/                   # Shared: adjacency matrices W, β
 ├── full_networks/              # Full: adjacency matrices W, β
 ├── modules/                    # Shared: module membership per gene
 ├── bootstrap/                  # Shared: bootstrap metric distributions
-├── nulls/                      # Shared: permutation p-values (EG, Hb, CEI)
+├── nulls/                      # Shared: permutation p-values (EG, Hb, NOI)
 ├── optimum/                    # Shared: W*, ΔE, ΔR, ΔG, ΔH
 ├── full_bootstrap/             # Full branch equivalents
 ├── full_nulls/
@@ -263,8 +259,8 @@ results/
 
 | File | Content |
 |------|---------|
-| `results/metrics/all_constructal_metrics.tsv`           | Main constructal metrics (shared branch) |
-| `results/full_metrics/all_full_constructal_metrics.tsv` | Full-resolution metrics                  |
+| `results/metrics/all_network_metrics.tsv`           | Main network metrics (shared branch) |
+| `results/full_metrics/all_full_network_metrics.tsv` | Full-resolution metrics                  |
 | `results/summary/cross_dataset_trends.tsv`              | EG_change, R̄_change per tissue/branch    |
 | `results/summary/all_deviation_from_optimum.tsv`        | ΔE, ΔR, ΔG, ΔH relative to W*            |
 | `results/gene_drivers/{acc}_gene_driver_scores.tsv`     | Per-gene PTI/IRI/TRI/class               |
@@ -304,6 +300,24 @@ Gene classes (mutually exclusive, evaluated in priority order):
 - All scripts accept dataset targets as command-line arguments for partial re-runs
 
 ---
+
+
+## Architecture
+
+The repository is split by what each language does best:
+
+| Layer | Language | Why | Files |
+|---|---|---|---|
+| Download, QC, annotation, coexpression networks, WGCNA modules, bootstrap/permutation nulls, limma DE, enrichment | **R** | GEOquery / WGCNA / limma / clusterProfiler have no Python equivalent of the same maturity | `R_scripts_*/` |
+| Cross-tissue coherence (cellular sheaf), quasi-potential landscape (persistence, score, Fisher, Schrödinger bridge, Hodge), power simulations | **Python** | numpy/scipy linear algebra, TDA and OT tooling | `python/` |
+| Orchestration | bash | one entry point, `--quick` smoke test | `run_all.sh` |
+
+Interface between layers: `01` writes `export_sheaf/` (expression TSV per tissue restricted to common high-variance genes + pheno); the Python modules read only that. Theory: `THEORY.md`. Change log: `CHANGES.md`.
+
+```bash
+bash run_all.sh --quick             # ~10 min, one tissue, reduced iterations
+bash run_all.sh --workers=32        # full run, ~4 h
+```
 
 ## Sample-size and design caveats
 
