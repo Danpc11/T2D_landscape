@@ -10,6 +10,8 @@ Satin & Sherman 2016), leaves a measurable footprint in the transcriptomes of
 the organs, and whether the transition is a single-tissue event or a loss of
 coordination between tissues.
 
+Formal statements and proofs of everything below (sheaf energy as a Grassmann distance, the 1/n sampling bias and its correction, Morse correspondence, stability-based guaranteed basins, consistency of the two-attractor decision, Kramers asymmetry, potential–flux decomposition) are in `THEORY_FORMAL.md`.
+
 ## 1. One object: the quasi-potential landscape
 
 Let x be the (multi-tissue) transcriptional state of a person, evolving on the
@@ -121,6 +123,11 @@ embedding.
 - Network β unique per tissue (healthy state). In the sheaf, a single global β.
 - Network metrics relative to the configuration null; permutation nulls for
   stage labels and for gene↔gene correspondence.
+- Sheaf energy reported at equal n **and** extrapolated to n → ∞
+  (`E_n_extrapolated`), with the estimated sampling bias `sampling_bias_hat`
+  next to it (Prop. 3 of `THEORY_FORMAL.md`).
+- Basins reported at two evidence levels: nominal (decision) and guaranteed
+  by the persistence stability theorem (`n_basins_guaranteed`).
 - Covariates centred by stage; sensitivity analysis without covariates.
 - Liver (n = 5/4/9) excluded from P2–P3; only P1 (healthy vs T2D) and
   sensitivity.
