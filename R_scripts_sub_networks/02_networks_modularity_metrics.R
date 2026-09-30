@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 # =============================================================================
-# 02_networks_modularity_constructal_metrics.R
+# 02_networks_modularity_metrics.R
 # Construye redes de co-expresion por estado sobre el espacio COMUN de genes
-# (interseccion de los 4 datasets de microarray), calcula metricas constructales
+# (interseccion de los 4 datasets de microarray), calcula metricas de red
 # y detecta modulos.
 #
 # DATASETS: GSE76895, GSE18732, GSE15653, GSE27951
@@ -10,7 +10,7 @@
 #
 # CORRECCIONES:
 #   [C5]  Subred fija de genes comunes filtrada por varianza global (script 01).
-#   [C6]  CEI calculado globalmente sobre todos los datasets/estados juntos.
+#   [C6]  NOI calculado globalmente sobre todos los datasets/estados juntos.
 #   [C7]  find_modules maximiza n_mod * Q (modularidad Newman) en lugar de solo
 #         n_mod. Fallback a corte mediano si ningun corte produce modulos validos.
 #   [C8]  Orden fisiologico en archivos de salida.
@@ -155,7 +155,7 @@ find_modules <- function(W, min_size = 20L) {
 }
 
 # -----------------------------------------------------------------------------
-# Metricas constructales
+# Metricas de red (eficiencia, comunicabilidad, resistencia, entropia)
 # [FIX-Rbar-v2] Rbar = 2*tr(L+)/(p-1): media de la resistencia efectiva por par
 # -----------------------------------------------------------------------------
 
@@ -285,29 +285,29 @@ for (acc in targets) {
   metrics_list[[acc]] <- metrics_df
 }
 
-# [C6] CEI calculado GLOBALMENTE sobre todos los datasets/estados
+# [C6] NOI calculado GLOBALMENTE sobre todos los datasets/estados
 all_metrics <- dplyr::bind_rows(metrics_list)
 
 zscore_global <- function(x) as.numeric(scale(x))
 
 all_metrics <- all_metrics |>
   dplyr::mutate(
-    # CEI sobre metricas a n IGUAL (evita confundir densidad por ruido de muestreo)
-    CEI = zscore_global(EG_sub) + zscore_global(Gbar_sub) -
+    # NOI sobre metricas a n IGUAL (evita confundir densidad por ruido de muestreo)
+    NOI = zscore_global(EG_sub) + zscore_global(Gbar_sub) -
           zscore_global(Rbar_sub) + zscore_global(Hb_sub),
-    # CEI relativo al nulo de configuracion (estructura, no densidad)
+    # NOI relativo al nulo de configuracion (estructura, no densidad)
     # (Hb_rel == 1 por construccion: el nulo preserva las fuerzas; se excluye)
-    CEI_rel = zscore_global(EG_rel) + zscore_global(Gbar_rel) -
+    NOI_rel = zscore_global(EG_rel) + zscore_global(Gbar_rel) -
               zscore_global(Rbar_rel)
   )
 
-# Reescribir archivos por dataset con CEI global incluido
+# Reescribir archivos por dataset con NOI global incluido
 for (acc in targets) {
   df_acc <- all_metrics[all_metrics$accession == acc, ]
   fwrite(df_acc,
          file.path("results/metrics",
-                   paste0(acc, "_constructal_metrics.tsv")), sep = "\t")
+                   paste0(acc, "_network_metrics.tsv")), sep = "\t")
 }
 
-fwrite(all_metrics, "results/metrics/all_constructal_metrics.tsv", sep = "\t")
+fwrite(all_metrics, "results/metrics/all_network_metrics.tsv", sep = "\t")
 message("Done.")
