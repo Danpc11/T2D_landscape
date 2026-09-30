@@ -33,6 +33,26 @@ suppressPackageStartupMessages({
   library(doParallel)
 })
 
+# -----------------------------------------------------------------------------
+# [CLI] Banderas de linea de comandos: --nombre=valor (tienen prioridad sobre la
+# variable de entorno homonima, que se conserva por compatibilidad).
+#   Rscript script.R [--workers=32] [--n_boot=100] [...] [GSE... GSE...]
+# Los argumentos sin "--" son los accessions a procesar.
+# -----------------------------------------------------------------------------
+.cli_raw   <- commandArgs(trailingOnly = TRUE)
+.cli_flags <- grep("^--", .cli_raw, value = TRUE)
+cli_args   <- grep("^--", .cli_raw, value = TRUE, invert = TRUE)
+get_flag <- function(name, env = NULL, default) {
+  hit <- grep(paste0("^--", name, "="), .cli_flags, value = TRUE)
+  if (length(hit) > 0) return(sub(paste0("^--", name, "="), "", hit[1]))
+  if (!is.null(env)) { v <- Sys.getenv(env, unset = NA); if (!is.na(v) && nzchar(v)) return(v) }
+  as.character(default)
+}
+if (any(.cli_flags == "--help")) {
+  cat("Uso: Rscript", basename(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))),
+      "[--flag=valor ...] [GSE...]\nBanderas: ver cabecera del script (get_flag).\n"); quit(status = 0)
+}
+
 # doRNG opcional — reproducibilidad en paralelo
 HAS_DORNG <- requireNamespace("doRNG", quietly = TRUE)
 if (HAS_DORNG) {
@@ -48,7 +68,7 @@ options(stringsAsFactors = FALSE)
 # Parallelization (CRITICAL)
 # -----------------------------------------------------------------------------
 
-n_workers <- as.integer(Sys.getenv("N_WORKERS", 40))
+n_workers <- as.integer(get_flag("workers", "N_WORKERS", 40))
 
 # [CORRECTED] Prevents oversubscription in matrix multiplications (%*%)
 Sys.setenv(
@@ -80,8 +100,7 @@ message("Parallel engine: ", n_workers, " workers | BLAS=1 | doRNG=", HAS_DORNG)
 dir.create("results/gene_drivers", recursive = TRUE, showWarnings = FALSE)
 dir.create("results/enrichment",   recursive = TRUE, showWarnings = FALSE)
 
-args    <- commandArgs(trailingOnly = TRUE)
-targets <- if (length(args) == 0) c("GSE76895", "GSE18732", "GSE15653", "GSE27951") else args
+targets <- if (length(cli_args) == 0) c("GSE76895", "GSE18732", "GSE15653", "GSE27951") else cli_args
 
 state_orders <- list(
   GSE76895 = c("ND", "IGT", "T2D"),
