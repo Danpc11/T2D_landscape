@@ -48,6 +48,7 @@ STATE_ORDERS = {"GSE76895": ["ND", "IGT", "T2D"], "GSE18732": ["ND", "IGT", "T2D
                 "GSE15653": ["Lean", "Obese_noT2D", "Obese_T2D"], "GSE27951": ["NGT", "IGT", "T2D"]}
 STAGE = ["healthy", "intermediate", "T2D"]
 NO_COVAR = False
+NO_BALANCE = False
 COVARS = {"bmi": ["bmi", "body mass index", "body_mass_index", "bodymassindex", "body mass"],
           "age": ["age", "edad", "years"], "sex": ["sex", "gender"]}
 # grupos de controles continuos: se calcula Fisher para cada grupo disponible
@@ -119,21 +120,32 @@ def pca(Y, r):
 # ----------------------------------------------------------------------------
 # densidad, score, puntos criticos
 # ----------------------------------------------------------------------------
-def kde(Z, X, h):
+def kde(Z, X, h, w=None):
+    """KDE gaussiano de los datos Z evaluado en X. w: pesos por muestra (suman 1).
+    [FIX-design] Sin pesos, la densidad refleja cuantos pacientes se reclutaron por
+    estadio (diseno del estudio), no la frecuencia de los estados. Por defecto el
+    pipeline pondera cada estadio a masa igual (1/3)."""
     D2 = cdist(X, Z, "sqeuclidean")
     K = np.exp(-D2 / (2 * h * h))
-    return K.mean(1) / (2 * np.pi * h * h) ** (Z.shape[1] / 2) + 1e-300, K
+    if w is None: w = np.full(Z.shape[0], 1.0 / Z.shape[0])
+    return (K @ w) / (2 * np.pi * h * h) ** (Z.shape[1] / 2) + 1e-300, K * w[None, :]
 
-def score(Z, X, h):
-    p, K = kde(Z, X, h)
-    num = (K[:, :, None] * (Z[None, :, :] - X[:, None, :])).sum(1) / (h * h)
-    return num / (K.sum(1)[:, None] + 1e-300)      # grad ln p
+def score(Z, X, h, w=None):
+    p, Kw = kde(Z, X, h, w)
+    num = (Kw[:, :, None] * (Z[None, :, :] - X[:, None, :])).sum(1) / (h * h)
+    return num / (Kw.sum(1)[:, None] + 1e-300)      # grad ln p
+
+def stage_weights(st, balance=True):
+    if not balance: return np.full(len(st), 1.0 / len(st))
+    w = np.zeros(len(st)); S = np.unique(st)
+    for g in S: w[st == g] = 1.0 / (len(S) * (st == g).sum())
+    return w
 
 def silverman(Z):
     n, d = Z.shape
     return (4 / (d + 2)) ** (1 / (d + 4)) * n ** (-1 / (d + 4)) * Z.std(0).mean()
 
-def critical_points(Z, h, n_starts=200, seed=0):
+def critical_points(Z, h, n_starts=200, seed=0, w=None):
     """Ascenso por el score desde puntos aleatorios -> modos; jacobiano numerico
     para clasificar (minimo de U = modo de p). Sillas: puntos donde el score se
     anula con jacobiano indefinido, buscados como minimos de |score| en la
@@ -142,25 +154,25 @@ def critical_points(Z, h, n_starts=200, seed=0):
     lo, hi = Z.min(0), Z.max(0)
     X = rng.uniform(lo, hi, size=(n_starts, Z.shape[1]))
     for _ in range(300):
-        X = X + 0.1 * h * h * score(Z, X, h)
+        X = X + 0.1 * h * h * score(Z, X, h, w)
     # agrupar modos
     modes = []
     for x in X:
         if not any(np.linalg.norm(x - m) < 1.0 * h for m in modes): modes.append(x)
     modes = np.array(modes)
-    dens, _ = kde(Z, modes, h)
+    dens, _ = kde(Z, modes, h, w)
     keep = dens > 0.05 * dens.max()          # descartar modos espurios de baja densidad
     return modes[keep], -np.log(dens[keep])
 
 # ----------------------------------------------------------------------------
 # persistencia de subnivel H0 sobre malla (2 primeras dims)
 # ----------------------------------------------------------------------------
-def sublevel_persistence_2d(Z, h, grid=80):
+def sublevel_persistence_2d(Z, h, grid=80, w=None):
     z = Z[:, :2]
     lo, hi = z.min(0) - 2 * h, z.max(0) + 2 * h
     gx, gy = np.meshgrid(np.linspace(lo[0], hi[0], grid), np.linspace(lo[1], hi[1], grid))
     G = np.column_stack([gx.ravel(), gy.ravel()])
-    p, _ = kde(z, G, h)
+    p, _ = kde(z, G, h, w)
     U = -np.log(p).reshape(grid, grid)
     order = np.argsort(U.ravel())
     parent = -np.ones(U.size, int); birth = {}; pairs = []
@@ -188,18 +200,19 @@ def sublevel_persistence_2d(Z, h, grid=80):
     pers = [(b, d, d - b, G[r]) for b, d, r in pairs]
     return U, (gx, gy), pers, birth
 
-def persistence_threshold(Z2, h, rng, B=30, alpha=0.90):
+def persistence_threshold(Z2, h, rng, B=30, alpha=0.90, w=None):
     """[Stability theorem] d_B(Dgm(U_hat), Dgm(U)) <= ||U_hat - U||_inf. Estimamos
     eps = cuantil alpha de ||U_hat_b - U_hat||_inf sobre bootstrap del KDE (Fasy et
     al. 2014) restringido al soporte de los datos. Toda barra con persistencia
     > 2 eps corresponde a una barra real con confianza alpha. Umbral final:
     max(ln 2, 2 eps)  (interpretabilidad + garantia estadistica)."""
-    n = len(Z2); base = -np.log(kde(Z2, Z2, h)[0]); sup = []
+    n = len(Z2); base = -np.log(kde(Z2, Z2, h, w)[0]); sup = []
+    if w is None: w = np.full(n, 1.0 / n)
     # sup restringido a la region de alta densidad (80% de puntos mas densos): es
     # donde estan minimos y sillas; en las colas log p es inestable y no informa.
     core = base <= np.quantile(base, 0.8)
     for _ in range(B):
-        idx = rng.choice(n, n); sup.append(np.abs(-np.log(kde(Z2[idx], Z2[core], h)[0]) - base[core]).max())
+        idx = rng.choice(n, n, p=w); sup.append(np.abs(-np.log(kde(Z2[idx], Z2[core], h)[0]) - base[core]).max())
     eps = np.quantile(sup, alpha)
     return max(np.log(2), 2 * eps), eps
 
@@ -286,14 +299,15 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
     st = pheno["stage"].to_numpy()
     Yr, covs = (Y, []) if NO_COVAR else residualize(Y, pheno, stage=st)
     Z, varexp = pca(Yr, r)
+    wst = stage_weights(st, balance=not NO_BALANCE)   # [FIX-design] masa igual por estadio
     h0 = silverman(Z)
     res = dict(accession=acc, n=len(Z), r=r, var_explained=float(varexp.sum()), covariates=";".join(covs) or "none",
                n_by_stage=";".join(f"{STAGE[s]}={int((st == s).sum())}" for s in range(3)))
 
     # --- cuencas: barrido de ancho de banda, persistencia H0 ---
     n_basins, barriers = [], []
-    tau, eps_hat = persistence_threshold(Z[:, :2], h0, rng)
-    res.update(persistence_threshold_guaranteed=tau, stability_eps=eps_hat)
+    tau, eps_hat = persistence_threshold(Z[:, :2], h0, rng, w=wst)
+    res.update(persistence_threshold_guaranteed=tau, stability_eps=eps_hat, stage_balanced=int(not NO_BALANCE))
     # Dos niveles de evidencia (no se mezclan):
     #  - nominal: persistencia > ln 2 (densidad en la silla < 1/2 del valle menor),
     #    con estabilidad en escala -> decision two_attractors (validado en sinteticos)
@@ -303,7 +317,7 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
     #    conservadora: se reporta como fuerza de la evidencia.
     n_basins_g = []
     for h in h0 * np.array([0.7, 1.0, 1.4]):
-        U, grid, pers, _ = sublevel_persistence_2d(Z, h)
+        U, grid, pers, _ = sublevel_persistence_2d(Z, h, w=wst)
         ok_sup = lambda p: np.linalg.norm(Z[:, :2] - p[3], axis=1).min() < 1.5 * h
         sig = [p for p in pers if p[2] > np.log(2) and ok_sup(p)]
         n_basins_g.append(1 + len([p for p in pers if p[2] > tau and ok_sup(p)]))
@@ -323,7 +337,7 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
         Z2 = np.column_stack([Z @ ax, Z @ u2]); hp = silverman(Z2)
         nb = []
         for hh in hp * np.array([0.7, 1.0, 1.4]):
-            _, _, pers, _ = sublevel_persistence_2d(Z2, hh)
+            _, _, pers, _ = sublevel_persistence_2d(Z2, hh, w=wst)
             sig = [p for p in pers if p[2] > np.log(2) and np.linalg.norm(Z2 - p[3], axis=1).min() < 1.5 * hh]
             nb.append(1 + len(sig))
         n_basins_gp = int(np.median(nb))   # mediana sobre escalas (robusta a una sola escala)
@@ -340,7 +354,7 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
     res.update(two_attractors=int(two))
 
     # --- puntos criticos por score y a que estadio pertenece cada valle ---
-    modes, Umodes = critical_points(Z[:, :2], 1.3 * h0)      # 2D, ancho mayor: menos fragmentacion
+    modes, Umodes = critical_points(Z[:, :2], 1.3 * h0, w=wst)      # 2D, ancho mayor: menos fragmentacion
     mode_stage = []
     for m in modes:
         d = np.linalg.norm(Z[:, :2] - m, axis=1); near = st[np.argsort(d)[:max(5, len(Z) // 8)]]
@@ -351,9 +365,9 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
 
     # --- asimetria de barreras entre valle sano y valle T2D (bootstrap) ---
     def barrier_asym(Zb, stb):
-        h = silverman(Zb)
+        h = silverman(Zb); wb = stage_weights(stb, balance=not NO_BALANCE)
         cH = Zb[stb == 0].mean(0); cD = Zb[stb == 2].mean(0)
-        path = np.linspace(cH, cD, 60); p, _ = kde(Zb, path, h); Up = -np.log(p)
+        path = np.linspace(cH, cD, 60); p, _ = kde(Zb, path, h, wb); Up = -np.log(p)
         UH, UD, Umax = Up[0], Up[-1], Up.max()
         return Umax - UH, Umax - UD, np.argmax(Up) / 59
     dH, dD, pos = barrier_asym(Z, st)
@@ -432,7 +446,7 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
                flux_ratio_null_mean=float(np.mean(rnull)))
 
     pd.DataFrame(Z, columns=[f"pc{i+1}" for i in range(r)]).assign(sample=pheno[".sample_id"].to_numpy(), stage=[STAGE[s] for s in st],
-        U=-np.log(kde(Z, Z, h0)[0]), phi_dynamic=phi).to_csv(f"{out}/{acc}_embedding_potential.tsv", sep="\t", index=False)
+        U=-np.log(kde(Z, Z, h0, wst)[0]), stage_weight=wst, phi_dynamic=phi).to_csv(f"{out}/{acc}_embedding_potential.tsv", sep="\t", index=False)
     return res
 
 def main():
@@ -443,9 +457,10 @@ def main():
     ap.add_argument("--reps", type=int, default=20); ap.add_argument("--B", type=int, default=200)
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--no_covar", action="store_true", help="no regresar covariables (analisis de sensibilidad)")
+    ap.add_argument("--no_balance", action="store_true", help="no reponderar estadios a masa igual (sensibilidad)")
     ap.add_argument("--control", default=None, help="columna de pheno a usar como control continuo para Fisher (por defecto: hba1c y glucosa si existen)")
     a = ap.parse_args(); os.makedirs(a.out, exist_ok=True)
-    global NO_COVAR, CONTROL_OVERRIDE; NO_COVAR = a.no_covar; CONTROL_OVERRIDE = a.control; rng = np.random.default_rng(a.seed)
+    global NO_COVAR, CONTROL_OVERRIDE, NO_BALANCE; NO_COVAR = a.no_covar; CONTROL_OVERRIDE = a.control; NO_BALANCE = a.no_balance; rng = np.random.default_rng(a.seed)
     hv = pd.read_csv(os.path.join(a.export_dir, "high_variance_genes_ordered.tsv"), sep="\t")["gene"].tolist()[:a.n_genes]
     rows = []
     for acc in a.tissues:
