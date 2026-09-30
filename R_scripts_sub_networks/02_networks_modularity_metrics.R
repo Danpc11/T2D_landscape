@@ -175,21 +175,25 @@ compute_global_efficiency <- function(W) {
 }
 
 compute_communicability <- function(W) {
-  k    <- rowSums(W)
-  Dinv <- diag(1 / sqrt(k + 1e-12), nrow(W))
-  G    <- expm(Dinv %*% W %*% Dinv)
-  mean(G[row(G) != col(G)])
+  # [PERF] exp(Wn) via eigen simetrico (Wn = D^-1/2 W D^-1/2): ~5x mas rapido que
+  # expm() (Pade + scaling) y exacto. Solo se necesita la media fuera de la diagonal:
+  # sum(G) = sum_k exp(l_k) (1' v_k)^2 ; tr(G) = sum_k exp(l_k).
+  k    <- rowSums(W); p <- nrow(W)
+  Dinv <- 1 / sqrt(k + 1e-12)
+  Wn   <- W * outer(Dinv, Dinv)
+  eig  <- eigen(Wn, symmetric = TRUE)
+  ev   <- exp(eig$values)
+  cs   <- colSums(eig$vectors)
+  (sum(ev * cs^2) - sum(ev)) / (p * (p - 1))
 }
 
 compute_avg_effective_resistance <- function(W) {
-  p        <- nrow(W)
-  k        <- rowSums(W)
-  L        <- diag(k, p) - W
-  eig      <- eigen(L, symmetric = TRUE)
-  tol      <- max(abs(eig$values)) * p * 1e-10
-  inv_vals <- ifelse(eig$values > tol, 1 / eig$values, 0)
-  Lplus    <- eig$vectors %*% diag(inv_vals, p) %*% t(eig$vectors)
-  as.numeric(2 * sum(diag(Lplus)) / (p - 1))   # [FIX-Rbar-v2] media por par
+  # [PERF] tr(L+) = sum 1/lambda_k sobre autovalores no nulos: solo autovalores
+  # (only.values = TRUE), sin reconstruir L+ (ahorra O(p^3) y memoria).
+  p   <- nrow(W)
+  lam <- eigen(diag(rowSums(W), p) - W, symmetric = TRUE, only.values = TRUE)$values
+  tol <- max(abs(lam)) * p * 1e-10
+  as.numeric(2 * sum(ifelse(lam > tol, 1 / lam, 0)) / (p - 1))   # [FIX-Rbar-v2]
 }
 
 # Wrapper unico — mismo en scripts 03 y 04 para consistencia
