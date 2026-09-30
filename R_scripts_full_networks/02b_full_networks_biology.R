@@ -647,8 +647,8 @@ for (acc in targets) {
            file.path("results/full_modules",
                      paste0(acc, "_", st, "_full_modules.tsv")), sep = "\t")
 
-    # Metricas constructales
-    message("  [", st, "] Calculando metricas constructales...")
+    # Metricas de red (eficiencia, comunicabilidad, resistencia, entropia)
+    message("  [", st, "] Calculando metricas de red...")
     t0 <- proc.time()
     m  <- compute_metrics_fast(W, beta = net$beta, st = st,
                                k_eig = 200L)
@@ -704,14 +704,14 @@ for (acc in targets) {
 
   fwrite(metrics_df,
          file.path("results/full_metrics",
-                   paste0(acc, "_full_constructal_metrics.tsv")), sep = "\t")
+                   paste0(acc, "_full_network_metrics.tsv")), sep = "\t")
   all_metrics[[acc]] <- metrics_df
   message("  ", acc, " completado.")
 }
 
 if (length(all_metrics) > 0L) {
   all_df <- dplyr::bind_rows(all_metrics)
-  fwrite(all_df, "results/full_metrics/all_full_constructal_metrics.tsv",
+  fwrite(all_df, "results/full_metrics/all_full_network_metrics.tsv",
          sep = "\t")
 }
 
