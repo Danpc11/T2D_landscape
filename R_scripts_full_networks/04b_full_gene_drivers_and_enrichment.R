@@ -20,12 +20,32 @@ suppressPackageStartupMessages({
   library(parallel)
 })
 
+# -----------------------------------------------------------------------------
+# [CLI] Banderas de linea de comandos: --nombre=valor (tienen prioridad sobre la
+# variable de entorno homonima, que se conserva por compatibilidad).
+#   Rscript script.R [--workers=32] [--n_boot=100] [...] [GSE... GSE...]
+# Los argumentos sin "--" son los accessions a procesar.
+# -----------------------------------------------------------------------------
+.cli_raw   <- commandArgs(trailingOnly = TRUE)
+.cli_flags <- grep("^--", .cli_raw, value = TRUE)
+cli_args   <- grep("^--", .cli_raw, value = TRUE, invert = TRUE)
+get_flag <- function(name, env = NULL, default) {
+  hit <- grep(paste0("^--", name, "="), .cli_flags, value = TRUE)
+  if (length(hit) > 0) return(sub(paste0("^--", name, "="), "", hit[1]))
+  if (!is.null(env)) { v <- Sys.getenv(env, unset = NA); if (!is.na(v) && nzchar(v)) return(v) }
+  as.character(default)
+}
+if (any(.cli_flags == "--help")) {
+  cat("Uso: Rscript", basename(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))),
+      "[--flag=valor ...] [GSE...]\nBanderas: ver cabecera del script (get_flag).\n"); quit(status = 0)
+}
+
 options(stringsAsFactors = FALSE)
 
 # -----------------------------------------------------------------------------
 # HPC / Paralelismo
 # -----------------------------------------------------------------------------
-n_workers_total <- as.integer(Sys.getenv("N_WORKERS", unset = "48"))
+n_workers_total <- as.integer(get_flag("workers", "N_WORKERS", 48))
 
 # Evitar oversubscription BLAS
 Sys.setenv(
@@ -48,11 +68,10 @@ dir.create("results/full_enrichment",   recursive = TRUE, showWarnings = FALSE)
 # -----------------------------------------------------------------------------
 # Argumentos
 # -----------------------------------------------------------------------------
-args <- commandArgs(trailingOnly = TRUE)
-targets <- if (length(args) == 0) {
+targets <- if (length(cli_args) == 0) {
   c("GSE76895", "GSE18732", "GSE15653", "GSE27951")
 } else {
-  args
+  cli_args
 }
 
 state_orders <- list(
@@ -69,10 +88,10 @@ HAS_ENRICH <- requireNamespace("clusterProfiler", quietly = TRUE) &&
               requireNamespace("org.Hs.eg.db", quietly = TRUE)
 if (HAS_ENRICH) suppressPackageStartupMessages({ library(clusterProfiler); library(org.Hs.eg.db) })
 if (!HAS_ENRICH) message("clusterProfiler/org.Hs.eg.db no disponibles: se omite el enriquecimiento")
-MAX_GENES_NODE <- as.integer(Sys.getenv("MAX_GENES_NODE", unset = "3000"))
-MAX_GENES_TRI  <- as.integer(Sys.getenv("MAX_GENES_TRI",  unset = "1500"))
+MAX_GENES_NODE <- as.integer(get_flag("max_genes_node", "MAX_GENES_NODE", 3000))
+MAX_GENES_TRI  <- as.integer(get_flag("max_genes_tri", "MAX_GENES_TRI", 1500))
 MIN_COR        <- as.numeric(Sys.getenv("MIN_COR", unset = "0.2"))   # legacy, no usado en node_metrics
-N_TOP_ENRICH   <- as.integer(Sys.getenv("N_TOP_ENRICH", unset = "200"))
+N_TOP_ENRICH   <- as.integer(get_flag("n_top_enrich", "N_TOP_ENRICH", 200))
 # N_TOP_ENRICH=200: biologicamente interpretable y rapido.
 # enrichGO sobre 3000 genes produce p-valores inflados (todo significativo).
 # El universo correcto sigue siendo todos los genes de la red reducida.
