@@ -210,6 +210,18 @@ def run(data, genes, betas, n_by_tissue, r, reps, B, seed, tag, out_dir):
         for s in (1, 2): gcs[s].append(res[2][s])
     Es, Eds = np.array(Es), np.array(Eds)
     E_obs, Ed_obs = Es.mean(0), np.nanmean(Eds, 0)
+
+    # [n-extrapolation] Por Davis-Kahan, E_hat(n) = E + b/n + o(1/n). Con E_hat a
+    # n y a n/2, la extrapolacion de Richardson  E_inf = 2 E_hat(n) - E_hat(n/2)
+    # cancela el termino 1/n. Se reporta tambien b_hat = E_hat(n/2) - E_hat(n)
+    # (magnitud del sesgo de muestreo) para comparar con las diferencias entre estadios.
+    n_half = {a: max(5, n_by_tissue[a] // 2) for a in tissues}
+    Eh = []
+    for _ in range(reps):
+        res = analyse_once(data, genes, betas, rng, r, n_half)
+        if res is not None: Eh.append(res[0])
+    Eh = np.array(Eh) if Eh else np.full((1, 3), np.nan)
+    E_half = Eh.mean(0); E_inf = 2 * E_obs - E_half; bias_hat = E_half - E_obs
     print(f"[{tag}] observado ({len(Es)} submuestras, {time.time()-t0:.0f}s): "
           + " ".join(f"E_{STAGE_NAMES[s]}={E_obs[s]:.4f}" for s in range(3)))
 
@@ -248,6 +260,7 @@ def run(data, genes, betas, n_by_tissue, r, reps, B, seed, tag, out_dir):
                          tissues=";".join(tissues), n_genes=P, r=r,
                          n_per_tissue=";".join(f"{a}={n_by_tissue[a]}" for a in tissues),
                          E=E_obs[s], E_sd=Es.std(0)[s],
+                         E_half_n=E_half[s], E_n_extrapolated=E_inf[s], sampling_bias_hat=bias_hat[s],
                          E_delta=Ed_obs[s], E_delta_sd=np.nanstd(Eds, 0)[s],
                          E_null_corr_mean=Eb.mean(0)[s], z_vs_corr_null=z_corr[s],
                          p_vs_corr_null=p_corr[s]))
@@ -272,6 +285,8 @@ def run(data, genes, betas, n_by_tissue, r, reps, B, seed, tag, out_dir):
     stage_df.to_csv(os.path.join(out_dir, f"{tag}_coherence_by_stage.tsv"), sep="\t", index=False)
     test_df.to_csv(os.path.join(out_dir, f"{tag}_permutation_tests.tsv"), sep="\t", index=False)
     gene_df.to_csv(os.path.join(out_dir, f"{tag}_gene_incoherence.tsv"), sep="\t", index=False)
+    print(f"[{tag}] E_inf (n->inf): " + " ".join(f"{STAGE_NAMES[s]}={E_inf[s]:.4f}" for s in range(3))
+          + f" | sesgo b/n ~ {np.nanmean(bias_hat):.4f}")
     print(f"[{tag}] p(int max)={p_lab['int_max']:.3f}  p(T2D>healthy)={p_lab['T2D_gt_healthy']:.3f}  "
           f"z vs nulo-corr={np.round(z_corr, 2)}")
     return stage_df, test_df
