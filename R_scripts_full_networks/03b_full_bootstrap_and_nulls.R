@@ -117,7 +117,7 @@ message("Motor paralelo: ", n_workers, " workers | BLAS=1 | doRNG=", HAS_DORNG)
 # -----------------------------------------------------------------------------
 dir.create("results/full_bootstrap", recursive = TRUE, showWarnings = FALSE)
 dir.create("results/full_nulls",     recursive = TRUE, showWarnings = FALSE)
-dir.create("results/full_optimum",   recursive = TRUE, showWarnings = FALSE)
+dir.create("results/full_reference",   recursive = TRUE, showWarnings = FALSE)
 
 targets <- if (length(cli_args) == 0) c("GSE76895", "GSE18732", "GSE15653", "GSE27951") else cli_args
 
@@ -272,7 +272,7 @@ build_full_network_boot <- function(expr_sub, beta_fixed, genes_fixed) {
   W
 }
 
-# build_full_network para optimo constructal: usa red completa guardada
+# build_full_network para referencia de configuracion (Chung-Lu): usa red completa guardada
 # (no construye de cero — lee directamente el archivo de 02b)
 # Solo para compute_metrics del optimo, no en loops de bootstrap/perm.
 
@@ -333,7 +333,7 @@ permute_group_test <- function(expr, pheno, states, betas,
     )
   })
   obs_diff <- obs[[1]] - obs[[2]]
-  # CEI simplificado con EG y Hb (sin Gbar y Rbar que no se calculan en perm)
+  # NOI simplificado con EG y Hb (sin Gbar y Rbar que no se calculan en perm)
   obs_CEI  <- (obs[[1]]["EG"] + obs[[1]]["Hb"]) -
               (obs[[2]]["EG"] + obs[[2]]["Hb"])
 
@@ -358,7 +358,7 @@ permute_group_test <- function(expr, pheno, states, betas,
     cei <- (pm[[1]]["EG"] + pm[[1]]["Hb"]) - (pm[[2]]["EG"] + pm[[2]]["Hb"])
     c(d["EG"], d["Hb"], cei)
   }
-  colnames(perm_diffs) <- c("EG", "Hb", "CEI")
+  colnames(perm_diffs) <- c("EG", "Hb", "NOI")
 
   data.frame(
     state1        = states[1],
@@ -368,7 +368,7 @@ permute_group_test <- function(expr, pheno, states, betas,
     obs_diff_EGHb = obs_CEI,
     p_perm_EG     = (sum(abs(perm_diffs[,"EG"])  >= abs(obs_diff["EG"]),  na.rm = TRUE) + 1) / (n_perm + 1),
     p_perm_Hb     = (sum(abs(perm_diffs[,"Hb"])  >= abs(obs_diff["Hb"]),  na.rm = TRUE) + 1) / (n_perm + 1),
-    p_perm_EGHb   = (sum(abs(perm_diffs[,"CEI"]) >= abs(obs_CEI),         na.rm = TRUE) + 1) / (n_perm + 1),
+    p_perm_EGHb   = (sum(abs(perm_diffs[,"NOI"]) >= abs(obs_CEI),         na.rm = TRUE) + 1) / (n_perm + 1),
     n_perm        = n_perm,
     n_distinct_perm = choose(ncol(expr2), sum(ph2$condition == states[1]))
   )
@@ -379,7 +379,7 @@ permute_group_test <- function(expr, pheno, states, betas,
 # Usa las redes COMPLETAS guardadas por 02b — no reconstruye en bootstrap.
 # =============================================================================
 
-approx_constructal_optimum <- function(W_ref, alpha = 2) {
+configuration_reference <- function(W_ref, alpha = 2) {
   p        <- nrow(W_ref)
   k_ref    <- rowSums(W_ref)
   tri      <- upper.tri(W_ref)
@@ -475,7 +475,7 @@ for (acc in targets) {
     message("  Permutaciones guardadas: ", nrow(pair_df), " filas.")
   }
 
-  # --- 3. Optimo constructal (sobre red completa guardada por 02b) ---
+  # --- 3. Referencia de configuracion (Chung-Lu) (sobre red completa guardada por 02b) ---
   healthy_state <- ord[1]
   net_path      <- file.path("results/full_networks",
                              paste0(acc, "_", healthy_state, "_full_network.rds"))
@@ -484,10 +484,10 @@ for (acc in targets) {
     next
   }
 
-  message("  Calculando optimo constructal...")
+  message("  Calculando referencia de configuracion (Chung-Lu)...")
   obj_h    <- readRDS(net_path)
   Whealthy <- if (is.list(obj_h) && !is.null(obj_h$W)) obj_h$W else obj_h
-  Wopt     <- approx_constructal_optimum(Whealthy, alpha = 2)
+  Wopt     <- configuration_reference(Whealthy, alpha = 2)
 
   # Metricas del optimo sobre subred top-3000 (misma logica que en dev)
   p_opt    <- nrow(Wopt)
@@ -537,11 +537,11 @@ for (acc in targets) {
 
   if (!is.null(dev) && nrow(dev) > 0L) {
     saveRDS(list(Wopt = Wopt, metrics = mopt),
-            file.path("results/full_optimum",
-                      paste0(acc, "_full_optimum.rds")))
+            file.path("results/full_reference",
+                      paste0(acc, "_full_reference.rds")))
     fwrite(dev,
-           file.path("results/full_optimum",
-                     paste0(acc, "_full_deviation_from_optimum.tsv")), sep = "\t")
+           file.path("results/full_reference",
+                     paste0(acc, "_full_deviation_from_reference.tsv")), sep = "\t")
     message("  Optimo guardado.")
   }
 
