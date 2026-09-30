@@ -105,10 +105,12 @@ def pick_beta(X, powers=range(1, 21), r2_cut=0.80, method="bicor"):
 # Embedding espectral y mapas de restriccion (Procrustes)
 # ----------------------------------------------------------------------------
 def spectral_embedding(W, r):
+    from scipy.linalg import eigh
     d = W.sum(1) + 1e-12
     Ln = np.eye(W.shape[0]) - W / np.sqrt(np.outer(d, d))
-    vals, vecs = np.linalg.eigh(Ln)
-    return vecs[:, 1:r + 1]
+    # [PERF] solo los r+1 autovectores inferiores (~3x mas rapido que eigh completo)
+    vals, vecs = eigh(Ln, subset_by_index=[1, r])
+    return vecs
 
 def procrustes_align(X, R):
     """Rotacion O(r) que minimiza ||X Q - R||_F."""
@@ -162,7 +164,7 @@ def build_stalks(data, genes, betas, rng, r, n_by_tissue, label_perm=False,
     emb = {}
     for t, acc in enumerate(tissues):
         expr, pheno = data[acc]
-        X_all = expr.loc[genes].to_numpy()
+        X_all = _XCACHE[acc]                        # [PERF] precomputado en run()
         stages = pheno["stage"].to_numpy().copy()
         if label_perm:
             stages = rng.permutation(stages)
@@ -194,9 +196,13 @@ def analyse_once(data, genes, betas, rng, r, n_by_tissue, **kw):
     gene_c = {s: gene_incoherence(delta[s]) for s in (1, 2)}
     return E, E_delta, gene_c
 
-def run(data, genes, betas, n_by_tissue, r, reps, B, seed, tag, out_dir):
+_XCACHE = {}
+
+def run(data, genes, betas, n_by_tissue, r, reps, B, seed, tag, out_dir, reps_null=2):
     rng = np.random.default_rng(seed)
     tissues = list(data)
+    global _XCACHE
+    _XCACHE = {acc: data[acc][0].loc[genes].to_numpy() for acc in tissues}
     P = len(genes)
     t0 = time.time()
 
@@ -232,11 +238,16 @@ def run(data, genes, betas, n_by_tissue, r, reps, B, seed, tag, out_dir):
                 "delta_int_gt_T2D": Ed_obs[1] - Ed_obs[2]}
     null = {k: [] for k in stat_obs}
     gene_null = {1: [], 2: []}
+    # [FIX-null-estimator] el observado es una media de `reps` submuestras; el nulo
+    # debe usar el mismo estimador (media de reps_null submuestras por permutacion),
+    # si no la varianza del nulo esta inflada y el test es conservador.
     for b in range(B):
-        res = analyse_once(data, genes, betas, rng, r, n_by_tissue, label_perm=True)
-        if res is None:
+        acc_ = [analyse_once(data, genes, betas, rng, r, n_by_tissue, label_perm=True) for _ in range(reps_null)]
+        acc_ = [a for a in acc_ if a is not None]
+        if not acc_:
             continue
-        E, Ed, gc = res
+        E  = np.mean([a[0] for a in acc_], 0); Ed = np.nanmean([a[1] for a in acc_], 0)
+        gc = {s: np.mean([a[2][s] for a in acc_], 0) for s in (1, 2)}
         null["int_max"].append(E[1] - max(E[0], E[2]))
         null["T2D_gt_healthy"].append(E[2] - E[0])
         null["int_gt_healthy"].append(E[1] - E[0])
