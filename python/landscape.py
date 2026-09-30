@@ -48,17 +48,41 @@ STATE_ORDERS = {"GSE76895": ["ND", "IGT", "T2D"], "GSE18732": ["ND", "IGT", "T2D
                 "GSE15653": ["Lean", "Obese_noT2D", "Obese_T2D"], "GSE27951": ["NGT", "IGT", "T2D"]}
 STAGE = ["healthy", "intermediate", "T2D"]
 NO_COVAR = False
-COVARS = {"bmi": ["bmi", "body mass index"], "age": ["age", "edad"], "sex": ["sex", "gender"]}
-CONTROLS = ["hba1c", "glucose", "fasting glucose", "glucemia"]
+COVARS = {"bmi": ["bmi", "body mass index", "body_mass_index", "bodymassindex", "body mass"],
+          "age": ["age", "edad", "years"], "sex": ["sex", "gender"]}
+CONTROLS = ["hba1c", "hb a1c", "a1c", "glycated", "fasting glucose", "fasting plasma glucose", "fpg",
+            "glucose", "glucemia", "2h glucose", "ogtt"]
+
+def expand_characteristics(pheno):
+    """GEO guarda covariables como texto 'clave: valor' en characteristics_ch1.N.
+    Expande cada par en una columna 'clave' (si no existe ya) para que find_col
+    las encuentre por nombre. Tambien parte celdas con varios pares ' | '."""
+    pheno = pheno.copy(); new = {}
+    for c in list(pheno.columns):
+        if pd.api.types.is_numeric_dtype(pheno[c]): continue
+        vals = pheno[c].astype(str)
+        if not (vals.str.contains(r"^[^:|]{1,40}:\s*\S", regex=True).mean() > 0.5): continue
+        for i, cell in vals.items():
+            for part in str(cell).split(" | "):
+                if ":" not in part: continue
+                k, v = part.split(":", 1); k = k.strip().lower().replace(" ", "_"); v = v.strip()
+                if not k or k in pheno.columns: continue
+                new.setdefault(k, {})[i] = v
+    for k, d in new.items():
+        pheno[k] = pd.Series(d, dtype=object).reindex(pheno.index)
+    return pheno
 
 # ----------------------------------------------------------------------------
 # utilidades
 # ----------------------------------------------------------------------------
 def find_col(pheno, names):
-    low = {c.lower(): c for c in pheno.columns}
-    for n in names:
+    low = {c.lower().replace("_", " "): c for c in pheno.columns}
+    for n in names:                       # 1) nombre exacto
+        if n in low: return low[n]
+    for n in names:                       # 2) contenido, como palabra (evita 'age' en 'percentage')
         for lc, c in low.items():
-            if n in lc: return c
+            import re
+            if re.search(r"(^|[^a-z])" + re.escape(n) + r"([^a-z]|$)", lc): return c
     return None
 
 def residualize(Y, pheno, stage=None):
@@ -229,7 +253,7 @@ def hodge_decompose_drift(X, drift, k=8):
 # ----------------------------------------------------------------------------
 def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
     order = STATE_ORDERS[acc]
-    pheno = pheno.copy(); pheno["stage"] = pheno["condition"].map({s: k for k, s in enumerate(order)})
+    pheno = expand_characteristics(pheno); pheno["stage"] = pheno["condition"].map({s: k for k, s in enumerate(order)})
     pheno = pheno.dropna(subset=["stage"]); pheno["stage"] = pheno["stage"].astype(int)
     pheno = pheno[pheno[".sample_id"].isin(expr.columns)]
     Y = expr.loc[genes, pheno[".sample_id"]].to_numpy().T          # muestras x genes
