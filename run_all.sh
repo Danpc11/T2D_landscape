@@ -3,11 +3,19 @@
 # R  : download/QC, coexpression networks (WGCNA), metrics, bootstrap, drivers, limma.
 # Py : cross-tissue coherence (sheaf), quasi-potential landscape (U, J).
 set -uo pipefail
-WORKERS=32; QUICK=0
-for a in "$@"; do case $a in --workers=*) WORKERS="${a#*=}";; --quick) QUICK=1;; esac; done
+WORKERS=32; QUICK=0; FROM=""
+for a in "$@"; do case $a in --workers=*) WORKERS="${a#*=}";; --quick) QUICK=1;; --from=*) FROM="${a#*=}";; esac; done
+# --from=PASO reanuda desde ese paso (02, 03, 04, 02b, 03b, 04b, 04c, 05, sheaf, landscape)
+STEPS="02 03 04 02b 03b 04b 04c 05 sheaf landscape sheaf_b4 sheaf_b8 landscape_nocovar landscape_nobalance"
+SKIP=1; [ -z "$FROM" ] && SKIP=0
+# Seguridad: no permitir dos corridas simultaneas (escriben en los mismos results/ y logs/)
+LOCK=logs/run_all.lock; mkdir -p logs
+if [ -e "$LOCK" ] && kill -0 "$(cat "$LOCK")" 2>/dev/null; then echo "Ya hay una corrida de run_all.sh en marcha (PID $(cat "$LOCK")). Abortando."; exit 1; fi
+echo $$ > "$LOCK"; trap 'rm -f "$LOCK"' EXIT
 mkdir -p logs
 run() {  # run <logname> <cmd...>
-  local log="logs/$1.log"; shift
+  local name="$1"; local log="logs/$1.log"; shift
+  if [ $SKIP -eq 1 ]; then [ "$name" = "$FROM" ] && SKIP=0 || { echo "--- omitido (--from=$FROM): $name"; return 0; }; fi
   echo "=== $*"
   if ! "$@" > "$log" 2>&1; then echo "FAILED: $*"; echo "--- last lines of $log:"; tail -15 "$log"; exit 1; fi
 }
@@ -20,7 +28,7 @@ else
 fi
 
 # --- 01: download + QC (only if processed data are missing) ---
-[ -d data/processed ] || run 01 Rscript R_scripts_preprocessing/01_download_qc_preprocess.R
+[ -d data/processed ] || [ -n "$FROM" ] || run 01 Rscript R_scripts_preprocessing/01_download_qc_preprocess.R
 
 # --- export_sheaf/: regenerate from data/processed if missing (no download) ---
 if [ ! -f export_sheaf/high_variance_genes_ordered.tsv ]; then
