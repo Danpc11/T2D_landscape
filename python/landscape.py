@@ -50,8 +50,11 @@ STAGE = ["healthy", "intermediate", "T2D"]
 NO_COVAR = False
 COVARS = {"bmi": ["bmi", "body mass index", "body_mass_index", "bodymassindex", "body mass"],
           "age": ["age", "edad", "years"], "sex": ["sex", "gender"]}
-CONTROLS = ["hba1c", "hb a1c", "a1c", "glycated", "fasting glucose", "fasting plasma glucose", "fpg",
-            "glucose", "glucemia", "2h glucose", "ogtt"]
+# grupos de controles continuos: se calcula Fisher para cada grupo disponible
+CONTROL_GROUPS = {"hba1c":   ["hba1c", "hb a1c", "a1c", "glycated", "hemoglobin a1c"],
+                  "glucose": ["fasting glucose", "fasting plasma glucose", "fpg", "glucose 0h", "glucose", "glucemia"]}
+CONTROLS = sum(CONTROL_GROUPS.values(), [])
+CONTROL_OVERRIDE = None   # --control nombre_de_columna
 
 def expand_characteristics(pheno):
     """GEO guarda covariables como texto 'clave: valor' en characteristics_ch1.N.
@@ -96,8 +99,8 @@ def residualize(Y, pheno, stage=None):
         c = find_col(pheno, names)
         if c is None: continue
         v = pheno[c]
-        if key == "sex": v = pd.factorize(v.astype(str))[0].astype(float)
-        v = pd.to_numeric(v, errors="coerce").to_numpy()
+        if key == "sex": v = pd.Series(pd.factorize(v.astype(str).str.strip().str.lower())[0], index=v.index).astype(float)
+        v = pd.to_numeric(v.astype(str).str.replace(",", "."), errors="coerce").to_numpy() if key != "sex" else v.to_numpy()
         if np.isnan(v).mean() > 0.2: continue
         v = np.where(np.isnan(v), np.nanmean(v), v)
         if stage is not None:
@@ -327,16 +330,29 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
     res.update(Ic_healthy=ic[0], Ic_intermediate=ic[1], Ic_T2D=ic[2],
                p_Ic_intermediate_max=(np.sum(nstat >= stat) + 1) / (len(nstat) + 1))
 
-    # --- Fisher a lo largo de covariable continua ---
-    ctrl = find_col(pheno, CONTROLS)
-    if ctrl is not None:
-        th = pd.to_numeric(pheno[ctrl], errors="coerce").to_numpy(); ok = ~np.isnan(th)
-        if ok.sum() >= 30:
-            c, g = fisher_along(Z[ok], th[ok], h0)
-            pd.DataFrame(dict(theta=c, fisher=g)).to_csv(f"{out}/{acc}_fisher_{ctrl}.tsv", sep="\t", index=False)
-            res.update(fisher_control=ctrl, fisher_peak_theta=c[np.argmax(g)] if len(g) else np.nan)
+    # --- Fisher a lo largo de covariables continuas (todas las disponibles) ---
+    ctrl_cols = {}
+    if CONTROL_OVERRIDE is not None:
+        c = find_col(pheno, [CONTROL_OVERRIDE.lower()]); 
+        if c is not None: ctrl_cols["control"] = c
     else:
-        res.update(fisher_control="none")
+        for grp, names in CONTROL_GROUPS.items():
+            c = find_col(pheno, names)
+            if c is not None: ctrl_cols[grp] = c
+    fisher_summary = []
+    for grp, c in ctrl_cols.items():
+        th = pd.to_numeric(pheno[c].astype(str).str.replace(",", "."), errors="coerce").to_numpy(); ok = ~np.isnan(th)
+        if ok.sum() < 30: continue
+        cen, g = fisher_along(Z[ok], th[ok], h0)
+        if len(g) == 0: continue
+        pd.DataFrame(dict(theta=cen, fisher=g)).to_csv(f"{out}/{acc}_fisher_{grp}.tsv", sep="\t", index=False)
+        # ¿en que estadio cae el pico? (estadio modal de los pacientes con theta cercano al pico)
+        pk = cen[np.argmax(g)]; near = st[ok][np.argsort(np.abs(th[ok] - pk))[:max(8, ok.sum() // 6)]]
+        res[f"fisher_{grp}_col"] = c; res[f"fisher_{grp}_peak_theta"] = pk
+        res[f"fisher_{grp}_peak_stage"] = STAGE[int(np.bincount(near, minlength=3).argmax())]
+        fisher_summary.append(f"{grp}:{pk:.2f}->{res[f'fisher_{grp}_peak_stage']}")
+    res["fisher_controls"] = ";".join(ctrl_cols.values()) or "none"
+    res["fisher_peaks"] = ";".join(fisher_summary) or "none"
 
     # --- ETAPA 2: puente sano -> T2D y Hodge de la deriva ---
     A, Bz = Z[st == 0], Z[st == 2]
@@ -376,8 +392,9 @@ def main():
     ap.add_argument("--reps", type=int, default=20); ap.add_argument("--B", type=int, default=200)
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--no_covar", action="store_true", help="no regresar covariables (analisis de sensibilidad)")
+    ap.add_argument("--control", default=None, help="columna de pheno a usar como control continuo para Fisher (por defecto: hba1c y glucosa si existen)")
     a = ap.parse_args(); os.makedirs(a.out, exist_ok=True)
-    global NO_COVAR; NO_COVAR = a.no_covar; rng = np.random.default_rng(a.seed)
+    global NO_COVAR, CONTROL_OVERRIDE; NO_COVAR = a.no_covar; CONTROL_OVERRIDE = a.control; rng = np.random.default_rng(a.seed)
     hv = pd.read_csv(os.path.join(a.export_dir, "high_variance_genes_ordered.tsv"), sep="\t")["gene"].tolist()[:a.n_genes]
     rows = []
     for acc in a.tissues:
@@ -389,7 +406,7 @@ def main():
         print(f"   cuencas(h0)={r['n_basins_h10']} estables={r['basins_stable']} dBIC2={r['dBIC_2vs1']:.1f} "
               f"modos={r['modes_stage']} | barrera asim={r['barrier_asymmetry']:.2f} "
               f"[{r['barrier_asym_CI_lo']:.2f},{r['barrier_asym_CI_hi']:.2f}] 2attr={r['two_attractors']} | Ic={r['Ic_healthy']:.2f}/{r['Ic_intermediate']:.2f}/{r['Ic_T2D']:.2f} "
-              f"p={r['p_Ic_intermediate_max']:.3f} | J/gradU={r['flux_ratio_J_over_gradU']:.2f} p_gt_null={r['p_flux_ratio_gt_null']:.3f}")
+              f"p={r['p_Ic_intermediate_max']:.3f} | Fisher {r['fisher_peaks']} | J/gradU={r['flux_ratio_J_over_gradU']:.2f} p_gt_null={r['p_flux_ratio_gt_null']:.3f}")
     pd.DataFrame(rows).to_csv(os.path.join(a.out, "landscape_summary.tsv"), sep="\t", index=False)
     json.dump(vars(a), open(os.path.join(a.out, "config.json"), "w"), indent=2)
 
