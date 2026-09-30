@@ -211,17 +211,24 @@ def critical_index(Yg):
 # ----------------------------------------------------------------------------
 # Fisher a lo largo de covariable continua
 # ----------------------------------------------------------------------------
-def fisher_along(Z, theta, h, n_win=6):
-    """g(theta) ~ 2 KL(p_w || p_w+1) / (dtheta)^2 entre ventanas deslizantes."""
+def fisher_along(Z, theta, h, n_win=6, min_dtheta_frac=0.08):
+    """g(theta) ~ 2 KL(p_w || p_w') / (dtheta)^2 entre ventanas deslizantes.
+    [FIX-edge] Se exige dtheta >= min_dtheta_frac * rango(theta): en zonas donde
+    muchos pacientes comparten casi el mismo theta (extremo sano), dtheta -> 0 y
+    g explotaba artificialmente. Las ventanas se separan hasta cumplir el minimo."""
     o = np.argsort(theta); Z, theta = Z[o], theta[o]
-    n = len(theta); w = max(8, n // n_win)
+    n = len(theta); w = max(8, n // n_win); rng_th = theta[-1] - theta[0]
+    if rng_th <= 0: return np.array([]), np.array([])
     centers, g = [], []
-    for s in range(0, n - 2 * w + 1, max(1, w // 2)):
-        A, B = Z[s:s + w], Z[s + w:s + 2 * w]
+    for s0 in range(0, n - w, max(1, w // 2)):
+        A = Z[s0:s0 + w]; thA = theta[s0:s0 + w].mean()
+        s1 = s0 + w
+        while s1 + w <= n and theta[s1:s1 + w].mean() - thA < min_dtheta_frac * rng_th: s1 += 1
+        if s1 + w > n: break
+        B = Z[s1:s1 + w]; dth = theta[s1:s1 + w].mean() - thA
         pa, _ = kde(A, A, h); pb, _ = kde(B, A, h)
         kl = np.mean(np.log(pa) - np.log(pb))
-        dth = theta[s + w:s + 2 * w].mean() - theta[s:s + w].mean()
-        if dth > 0: centers.append(theta[s:s + 2 * w].mean()); g.append(2 * max(kl, 0) / dth ** 2)
+        centers.append((thA + theta[s1:s1 + w].mean()) / 2); g.append(2 * max(kl, 0) / dth ** 2)
     return np.array(centers), np.array(g)
 
 # ----------------------------------------------------------------------------
@@ -282,10 +289,31 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
     res.update(n_basins_h07=n_basins[0], n_basins_h10=n_basins[1], n_basins_h14=n_basins[2],
                barrier_persistence=barriers[1], basins_stable=int(len(set(n_basins)) == 1))
     d2, d3 = gmm_dbic(Z); res.update(dBIC_2vs1=d2, dBIC_3vs1=d3)
+    # Persistencia en el plano (eje entre medias de la GMM de 2 comp., PC ortogonal
+    # principal): la bimodalidad puede vivir fuera de PC1-PC2. No usa etiquetas.
+    n_basins_gp = np.nan
+    try:
+        from sklearn.mixture import GaussianMixture
+        gm = GaussianMixture(2, covariance_type="full", n_init=5, random_state=0).fit(Z)
+        ax = gm.means_[1] - gm.means_[0]; ax /= np.linalg.norm(ax) + 1e-12
+        Zp = Z - np.outer(Z @ ax, ax); u2 = np.linalg.svd(Zp - Zp.mean(0), full_matrices=False)[2][0]
+        Z2 = np.column_stack([Z @ ax, Z @ u2]); hp = silverman(Z2)
+        nb = []
+        for hh in hp * np.array([0.7, 1.0, 1.4]):
+            _, _, pers, _ = sublevel_persistence_2d(Z2, hh)
+            sig = [p for p in pers if p[2] > np.log(2) and np.linalg.norm(Z2 - p[3], axis=1).min() < 1.5 * hh]
+            nb.append(1 + len(sig))
+        n_basins_gp = int(np.median(nb))   # mediana sobre escalas (robusta a una sola escala)
+    except Exception:
+        pass
+    res.update(n_basins_gmmplane=n_basins_gp)
     # Regla de decision (prefijada): dos atractores <=> cuencas persistentes
     # estables a traves de escalas Y mezcla de 2 componentes preferida por BIC.
     # Ninguna prueba sola basta (un continuo puede dar 2 cuencas a un solo h).
-    two = bool(res["basins_stable"] and n_basins[1] >= 2 and (not np.isnan(d2)) and d2 > 0)
+    # Dos atractores <=> dBIC>0 Y cuencas persistentes estables en PC1-PC2 O en el plano GMM
+    stable_pc = res["basins_stable"] and n_basins[1] >= 2
+    stable_gp = (not np.isnan(n_basins_gp)) and n_basins_gp >= 2
+    two = bool((not np.isnan(d2)) and d2 > 0 and (stable_pc or stable_gp))
     res.update(two_attractors=int(two))
 
     # --- puntos criticos por score y a que estadio pertenece cada valle ---
@@ -403,7 +431,7 @@ def main():
         genes = [g for g in hv if g in expr.index]
         print(f"[{acc}] n={len(pheno)} genes={len(genes)}")
         r = analyse_tissue(acc, expr, pheno, genes, a.r, a.reps, a.B, rng, a.out); rows.append(r)
-        print(f"   cuencas(h0)={r['n_basins_h10']} estables={r['basins_stable']} dBIC2={r['dBIC_2vs1']:.1f} "
+        print(f"   cuencas PC={r['n_basins_h10']} estables={r['basins_stable']} planoGMM={r['n_basins_gmmplane']} dBIC2={r['dBIC_2vs1']:.1f} "
               f"modos={r['modes_stage']} | barrera asim={r['barrier_asymmetry']:.2f} "
               f"[{r['barrier_asym_CI_lo']:.2f},{r['barrier_asym_CI_hi']:.2f}] 2attr={r['two_attractors']} | Ic={r['Ic_healthy']:.2f}/{r['Ic_intermediate']:.2f}/{r['Ic_T2D']:.2f} "
               f"p={r['p_Ic_intermediate_max']:.3f} | Fisher {r['fisher_peaks']} | J/gradU={r['flux_ratio_J_over_gradU']:.2f} p_gt_null={r['p_flux_ratio_gt_null']:.3f}")
