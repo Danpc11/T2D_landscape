@@ -1,16 +1,16 @@
 #!/usr/bin/env Rscript
 # =============================================================================
-# 03_bootstrap_nulls_optimum.R
-# Bootstrap de metricas, tests de permutacion y optimo constructal
+# 03_bootstrap_nulls_reference.R
+# Bootstrap de metricas, tests de permutacion y referencia de configuracion (Chung-Lu)
 # sobre el espacio COMUN de genes (rama compartida).
 #
 # DATASETS: GSE76895, GSE18732, GSE15653, GSE27951
 # RAMA: Compartida (subred fija <= 800 genes comunes)
 #
 # CORRECCIONES:
-#   [C9]  approx_constructal_optimum: optimo de primer orden del lagrangiano
+#   [C9]  configuration_reference: optimo de primer orden del lagrangiano
 #         max EG s.t. sum(w^alpha) = C. Pesos proporcionales a (k_i*k_j)^(1/alpha).
-#   [C10] permute_group_test: p-valores para EG, Hb, CEI (ver FIX-split).
+#   [C10] permute_group_test: p-valores para EG, Hb, NOI (ver FIX-split).
 #   [C11] Bootstrap paralelizado con doParallel/foreach.
 #   [C12] Datasets: GSE76895, GSE18732, GSE15653, GSE27951.
 #   [FIX-beta]  Beta fijo del archivo guardado por script 02.
@@ -93,7 +93,7 @@ message("Motor paralelo: ", n_workers, " workers | BLAS=1 | WGCNA=0 | doRNG=",
 # -----------------------------------------------------------------------------
 dir.create("results/bootstrap", recursive = TRUE, showWarnings = FALSE)
 dir.create("results/nulls",     recursive = TRUE, showWarnings = FALSE)
-dir.create("results/optimum",   recursive = TRUE, showWarnings = FALSE)
+dir.create("results/reference",   recursive = TRUE, showWarnings = FALSE)
 
 targets <- if (length(cli_args) == 0) c("GSE76895", "GSE18732", "GSE15653", "GSE27951") else cli_args
 
@@ -127,7 +127,7 @@ message("Subred fija: ", length(fixed_genes_global), " genes")
 # [FIX-Rbar] Rbar = 2*tr(L+)/p
 # =============================================================================
 
-# Metricas completas: bootstrap y optimo constructal
+# Metricas completas: bootstrap y referencia de configuracion (Chung-Lu)
 compute_metrics <- function(W) {
   p    <- nrow(W)
   k    <- rowSums(W)
@@ -253,19 +253,19 @@ permute_group_test <- function(expr, pheno, states, betas,
     cei <- (pm[[1]]["EG"] + pm[[1]]["Hb"]) - (pm[[2]]["EG"] + pm[[2]]["Hb"])
     c(d["EG"], d["Hb"], cei)
   }
-  colnames(perm_diffs) <- c("EG", "Hb", "CEI")
+  colnames(perm_diffs) <- c("EG", "Hb", "NOI")
 
   data.frame(
     state1        = states[1],
     state2        = states[2],
     obs_diff_EG   = obs_diff["EG"],
     obs_diff_Hb   = obs_diff["Hb"],
-    obs_diff_EGHb = obs_CEI,   # suma cruda EG+Hb (NO es el CEI z-scoreado de 02)
+    obs_diff_EGHb = obs_CEI,   # suma cruda EG+Hb (NO es el NOI z-scoreado de 02)
     # [FIX-pval] (b+1)/(B+1): evita p=0; n_distinct_perm advierte cuando el numero
     # de permutaciones distintas de etiquetas es pequeno (p.ej. 5 vs 4 -> 126).
     p_perm_EG     = (sum(abs(perm_diffs[, "EG"])  >= abs(obs_diff["EG"]),  na.rm = TRUE) + 1) / (n_perm + 1),
     p_perm_Hb     = (sum(abs(perm_diffs[, "Hb"])  >= abs(obs_diff["Hb"]),  na.rm = TRUE) + 1) / (n_perm + 1),
-    p_perm_EGHb   = (sum(abs(perm_diffs[, "CEI"]) >= abs(obs_CEI),         na.rm = TRUE) + 1) / (n_perm + 1),
+    p_perm_EGHb   = (sum(abs(perm_diffs[, "NOI"]) >= abs(obs_CEI),         na.rm = TRUE) + 1) / (n_perm + 1),
     n_perm        = n_perm,
     n_distinct_perm = choose(ncol(expr2), sum(ph2$condition == states[1]))
   )
@@ -279,7 +279,7 @@ permute_group_test <- function(expr, pheno, states, betas,
 # (Chung-Lu): la red SIN estructura con la misma secuencia de fuerzas. La "desviacion
 # del optimo" mide por tanto cuanta estructura (modularidad) tiene la red, no cuanto
 # le falta para ser eficiente. Se conserva el calculo pero debe interpretarse asi.
-approx_constructal_optimum <- function(W_ref, alpha = 2) {
+configuration_reference <- function(W_ref, alpha = 2) {
   p        <- nrow(W_ref)
   k_ref    <- rowSums(W_ref)
   tri      <- upper.tri(W_ref)
@@ -289,7 +289,7 @@ approx_constructal_optimum <- function(W_ref, alpha = 2) {
   W_opt_raw        <- (W_opt_raw + t(W_opt_raw)) / 2
   C_raw            <- sum(W_opt_raw[tri]^alpha)
   if (C_raw < 1e-12) {
-    warning("approx_constructal_optimum: presupuesto nulo; devolviendo original")
+    warning("configuration_reference: presupuesto nulo; devolviendo original")
     return(W_ref)
   }
   Wopt           <- W_opt_raw * (C_budget / C_raw)^(1 / alpha)
@@ -364,7 +364,7 @@ for (acc in targets) {
     message("  Permutaciones guardadas: ", nrow(pw_df), " filas.")
   }
 
-  # 3. Optimo constructal — metricas completas sobre red guardada por script 02
+  # 3. Referencia de configuracion (Chung-Lu) — metricas completas sobre red guardada por script 02
   healthy_state <- ord[1]
   net_path      <- file.path("results/networks",
                              paste0(acc, "_", healthy_state, "_network.rds"))
@@ -374,7 +374,7 @@ for (acc in targets) {
   }
 
   Whealthy <- readRDS(net_path)$W
-  Wopt     <- approx_constructal_optimum(Whealthy, alpha = 2)
+  Wopt     <- configuration_reference(Whealthy, alpha = 2)
   mopt     <- compute_metrics(Wopt)
 
   dev_list <- lapply(ord, function(st) {
@@ -400,11 +400,11 @@ for (acc in targets) {
   dev <- dplyr::bind_rows(dev_list[!sapply(dev_list, is.null)])
 
   saveRDS(list(Wopt = Wopt, metrics = mopt),
-          file.path("results/optimum", paste0(acc, "_optimum.rds")))
+          file.path("results/reference", paste0(acc, "_reference.rds")))
   if (nrow(dev) > 0L) {
     fwrite(dev,
-           file.path("results/optimum",
-                     paste0(acc, "_deviation_from_optimum.tsv")), sep = "\t")
+           file.path("results/reference",
+                     paste0(acc, "_deviation_from_reference.tsv")), sep = "\t")
   }
   message("  ", acc, " completado.")
 }
