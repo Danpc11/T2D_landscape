@@ -52,6 +52,7 @@ run sheaf     python python/sheaf_coherence.py --export_dir export_sheaf --out r
 run landscape python python/landscape.py --export_dir export_sheaf --out results/landscape $PY_LAND
 if [ $QUICK -eq 0 ]; then
   for b in 4 8; do run sheaf_b$b python python/sheaf_coherence.py --export_dir export_sheaf --out results/sheaf_beta$b --beta $b --n_genes 800 --reps 20 --B 200 --no_loto --no_sens; done
-  run landscape_nocovar python python/landscape.py --export_dir export_sheaf --out results/landscape_nocovar --no_covar $PY_LAND
+  run landscape_nocovar   python python/landscape.py --export_dir export_sheaf --out results/landscape_nocovar --no_covar $PY_LAND
+  run landscape_nobalance python python/landscape.py --export_dir export_sheaf --out results/landscape_nobalance --no_balance $PY_LAND
 fi
 echo "Done. Summaries: results/summary/, results/sheaf/main_*.tsv, results/landscape/landscape_summary.tsv"
