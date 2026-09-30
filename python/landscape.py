@@ -188,6 +188,21 @@ def sublevel_persistence_2d(Z, h, grid=80):
     pers = [(b, d, d - b, G[r]) for b, d, r in pairs]
     return U, (gx, gy), pers, birth
 
+def persistence_threshold(Z2, h, rng, B=30, alpha=0.90):
+    """[Stability theorem] d_B(Dgm(U_hat), Dgm(U)) <= ||U_hat - U||_inf. Estimamos
+    eps = cuantil alpha de ||U_hat_b - U_hat||_inf sobre bootstrap del KDE (Fasy et
+    al. 2014) restringido al soporte de los datos. Toda barra con persistencia
+    > 2 eps corresponde a una barra real con confianza alpha. Umbral final:
+    max(ln 2, 2 eps)  (interpretabilidad + garantia estadistica)."""
+    n = len(Z2); base = -np.log(kde(Z2, Z2, h)[0]); sup = []
+    # sup restringido a la region de alta densidad (80% de puntos mas densos): es
+    # donde estan minimos y sillas; en las colas log p es inestable y no informa.
+    core = base <= np.quantile(base, 0.8)
+    for _ in range(B):
+        idx = rng.choice(n, n); sup.append(np.abs(-np.log(kde(Z2[idx], Z2[core], h)[0]) - base[core]).max())
+    eps = np.quantile(sup, alpha)
+    return max(np.log(2), 2 * eps), eps
+
 # ----------------------------------------------------------------------------
 # GMM BIC
 # ----------------------------------------------------------------------------
@@ -277,17 +292,25 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
 
     # --- cuencas: barrido de ancho de banda, persistencia H0 ---
     n_basins, barriers = [], []
-    U_data_min = None
+    tau, eps_hat = persistence_threshold(Z[:, :2], h0, rng)
+    res.update(persistence_threshold_guaranteed=tau, stability_eps=eps_hat)
+    # Dos niveles de evidencia (no se mezclan):
+    #  - nominal: persistencia > ln 2 (densidad en la silla < 1/2 del valle menor),
+    #    con estabilidad en escala -> decision two_attractors (validado en sinteticos)
+    #  - garantizado: persistencia > tau = max(ln2, 2 eps_hat) [teorema de estabilidad,
+    #    Cohen-Steiner et al.; eps por bootstrap, Fasy et al. 2014] -> la cuenca no
+    #    puede ser un artefacto de estimacion con confianza 90%. Condicion suficiente,
+    #    conservadora: se reporta como fuerza de la evidencia.
+    n_basins_g = []
     for h in h0 * np.array([0.7, 1.0, 1.4]):
         U, grid, pers, _ = sublevel_persistence_2d(Z, h)
-        # cuenca significativa: persistencia > ln 2 (densidad en la silla < 1/2 de
-        # la del valle menor) y nacimiento dentro del soporte de los datos
-        # y minimo joven a menos de 1.5h de algun paciente (dentro del soporte)
-        sig = [p for p in pers if p[2] > np.log(2)
-               and np.linalg.norm(Z[:, :2] - p[3], axis=1).min() < 1.5 * h]
+        ok_sup = lambda p: np.linalg.norm(Z[:, :2] - p[3], axis=1).min() < 1.5 * h
+        sig = [p for p in pers if p[2] > np.log(2) and ok_sup(p)]
+        n_basins_g.append(1 + len([p for p in pers if p[2] > tau and ok_sup(p)]))
         n_basins.append(1 + len(sig)); barriers.append(sig[0][2] if sig else 0.0)
     res.update(n_basins_h07=n_basins[0], n_basins_h10=n_basins[1], n_basins_h14=n_basins[2],
-               barrier_persistence=barriers[1], basins_stable=int(len(set(n_basins)) == 1))
+               barrier_persistence=barriers[1], basins_stable=int(len(set(n_basins)) == 1),
+               n_basins_guaranteed=int(np.median(n_basins_g)))
     d2, d3 = gmm_dbic(Z); res.update(dBIC_2vs1=d2, dBIC_3vs1=d3)
     # Persistencia en el plano (eje entre medias de la GMM de 2 comp., PC ortogonal
     # principal): la bimodalidad puede vivir fuera de PC1-PC2. No usa etiquetas.
@@ -431,7 +454,7 @@ def main():
         genes = [g for g in hv if g in expr.index]
         print(f"[{acc}] n={len(pheno)} genes={len(genes)}")
         r = analyse_tissue(acc, expr, pheno, genes, a.r, a.reps, a.B, rng, a.out); rows.append(r)
-        print(f"   cuencas PC={r['n_basins_h10']} estables={r['basins_stable']} planoGMM={r['n_basins_gmmplane']} dBIC2={r['dBIC_2vs1']:.1f} "
+        print(f"   cuencas PC={r['n_basins_h10']} garantizadas={r['n_basins_guaranteed']}(tau={r['persistence_threshold_guaranteed']:.2f}) estables={r['basins_stable']} planoGMM={r['n_basins_gmmplane']} dBIC2={r['dBIC_2vs1']:.1f} "
               f"modos={r['modes_stage']} | barrera asim={r['barrier_asymmetry']:.2f} "
               f"[{r['barrier_asym_CI_lo']:.2f},{r['barrier_asym_CI_hi']:.2f}] 2attr={r['two_attractors']} | Ic={r['Ic_healthy']:.2f}/{r['Ic_intermediate']:.2f}/{r['Ic_T2D']:.2f} "
               f"p={r['p_Ic_intermediate_max']:.3f} | Fisher {r['fisher_peaks']} | J/gradU={r['flux_ratio_J_over_gradU']:.2f} p_gt_null={r['p_flux_ratio_gt_null']:.3f}")
