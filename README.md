@@ -56,7 +56,7 @@ T3cD samples in GSE76895 are excluded. NGT in GSE27951 is treated as the healthy
         ├── SHARED BRANCH ──────────────────────────────────────────────────────┐
         │                                                                       │
         ▼                                                                       │
-02_networks_modularity_metrics.R                                    │
+02_networks_modularity_metrics.R                                                │
         │  Fixed subnetwork (≤800 genes)                                        │
         │  bicor adjacency + WGCNA soft threshold                               │
         │  EG, Ḡ, R̄, Hb, NOI (global z-score)                                   │
@@ -64,16 +64,16 @@ T3cD samples in GSE76895 are excluded. NGT in GSE27951 is treated as the healthy
         └─ results/networks/, results/metrics/                                  │
                 │                                                               │
                 ▼                                                               │
-03_bootstrap_nulls_reference.R                                                    │
+03_bootstrap_nulls_reference.R                                                  │
         │  Bootstrap n=100: IC for all 4 metrics                                │
         │  Permutation tests n=1000 (EG+Hb): p_min=0.001                        │
-        │  Configuration reference: W* ∝ (kᵢkⱼ)^(1/α)                               │
-        └─ results/bootstrap/, results/nulls/, results/reference/                 │
+        │  Configuration reference: W* ∝ (kᵢkⱼ)^(1/α)                           │
+        └─ results/bootstrap/, results/nulls/, results/reference/               │
                 │                                                               │
                 ▼                                                               │
 04_gene_drivers_and_enrichment.R                                                │
         │  Node metrics: strength, eigencentrality, participation               │
-        │  PTI, IRI, TRI (exact per-gene recomputation)                       │
+        │  PTI, IRI, TRI (exact per-gene recomputation)                         │
         │  KO-support; GO:BP + KEGG enrichment (top-50)                         │
         └─ results/gene_drivers/, results/enrichment/                           │
                 │                                                               │
