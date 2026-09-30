@@ -47,6 +47,26 @@ suppressPackageStartupMessages({
   library(WGCNA)
 })
 
+# -----------------------------------------------------------------------------
+# [CLI] Banderas de linea de comandos: --nombre=valor (tienen prioridad sobre la
+# variable de entorno homonima, que se conserva por compatibilidad).
+#   Rscript script.R [--workers=32] [--n_boot=100] [...] [GSE... GSE...]
+# Los argumentos sin "--" son los accessions a procesar.
+# -----------------------------------------------------------------------------
+.cli_raw   <- commandArgs(trailingOnly = TRUE)
+.cli_flags <- grep("^--", .cli_raw, value = TRUE)
+cli_args   <- grep("^--", .cli_raw, value = TRUE, invert = TRUE)
+get_flag <- function(name, env = NULL, default) {
+  hit <- grep(paste0("^--", name, "="), .cli_flags, value = TRUE)
+  if (length(hit) > 0) return(sub(paste0("^--", name, "="), "", hit[1]))
+  if (!is.null(env)) { v <- Sys.getenv(env, unset = NA); if (!is.na(v) && nzchar(v)) return(v) }
+  as.character(default)
+}
+if (any(.cli_flags == "--help")) {
+  cat("Uso: Rscript", basename(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))),
+      "[--flag=valor ...] [GSE...]\nBanderas: ver cabecera del script (get_flag).\n"); quit(status = 0)
+}
+
 # doRNG para reproducibilidad en paralelo (opcional pero recomendado)
 HAS_DORNG <- requireNamespace("doRNG", quietly = TRUE)
 if (HAS_DORNG) {
@@ -77,7 +97,7 @@ options(stringsAsFactors = FALSE)
 # -----------------------------------------------------------------------------
 # Paralelismo HPC
 # -----------------------------------------------------------------------------
-n_workers <- as.integer(Sys.getenv("N_WORKERS", unset = "40"))
+n_workers <- as.integer(get_flag("workers", "N_WORKERS", 40))
 
 # BLAS=1 por worker: el paralelismo es entre iteraciones, no interno
 Sys.setenv(OMP_NUM_THREADS      = 1L,
@@ -99,8 +119,7 @@ dir.create("results/full_bootstrap", recursive = TRUE, showWarnings = FALSE)
 dir.create("results/full_nulls",     recursive = TRUE, showWarnings = FALSE)
 dir.create("results/full_optimum",   recursive = TRUE, showWarnings = FALSE)
 
-args    <- commandArgs(trailingOnly = TRUE)
-targets <- if (length(args) == 0) c("GSE76895", "GSE18732", "GSE15653", "GSE27951") else args
+targets <- if (length(cli_args) == 0) c("GSE76895", "GSE18732", "GSE15653", "GSE27951") else cli_args
 
 state_orders <- list(
   GSE76895 = c("ND",   "IGT", "T2D"),
@@ -109,8 +128,8 @@ state_orders <- list(
   GSE27951 = c("NGT",  "IGT", "T2D")
 )
 
-n_boot <- as.integer(Sys.getenv("N_BOOT", unset = "100"))    # bootstrap: 100 iteraciones
-n_perm <- as.integer(Sys.getenv("N_PERM", unset = "1000"))   # permutaciones: 1000 (p_min = 0.001, aceptable para publicacion)
+n_boot <- as.integer(get_flag("n_boot", "N_BOOT", 100))    # bootstrap: 100 iteraciones
+n_perm <- as.integer(get_flag("n_perm", "N_PERM", 1000))   # permutaciones: 1000 (p_min = 0.001, aceptable para publicacion)
 message("Bootstrap: ", n_boot, " iter | Permutaciones: ", n_perm, " iter")
 
 # =============================================================================
