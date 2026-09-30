@@ -8,7 +8,7 @@
 #
 # CORRECTIONS:
 #   [C18] trend_summary: physiological ordering via phys_order before
-#         first()/last(). Prevents CEI_change inversion due to alphabetical order.
+#         first()/last(). Prevents NOI_change inversion due to alphabetical order.
 #   [C19] Datasets and state_orders updated to the microarray quartet.
 #   [NEW] Warn if the join generates NAs in phys_order (unrecognized conditions).
 #   [FIX-regex] patrones anclados ^GSE: antes capturaban all_*.tsv -> filas duplicadas.
@@ -103,8 +103,8 @@ read_and_label <- function(dir_path, pattern, branch_name) {
 message("1. Métricas...")
 
 metrics <- bind_rows(
-  read_and_label("results/metrics", "^GSE[0-9]+_constructal_metrics\\.tsv$", "shared"),
-  read_and_label("results/full_metrics", "^GSE[0-9]+_full_constructal_metrics\\.tsv$", "full")
+  read_and_label("results/metrics", "^GSE[0-9]+_network_metrics\\.tsv$", "shared"),
+  read_and_label("results/full_metrics", "^GSE[0-9]+_full_network_metrics\\.tsv$", "full")
 )
 
 if (nrow(metrics) > 0) {
@@ -138,7 +138,7 @@ if (nrow(metrics) > 0) {
       # [NEW] cambios a n igual y relativos al nulo (rama shared; NA en full)
       EG_sub_change  = if ("EG_sub" %in% names(pick(everything()))) last(EG_sub) - first(EG_sub) else NA_real_,
       EG_rel_change  = if ("EG_rel" %in% names(pick(everything()))) last(EG_rel) - first(EG_rel) else NA_real_,
-      CEI_change     = if ("CEI" %in% names(pick(everything()))) last(CEI) - first(CEI) else NA_real_,
+      NOI_change     = if ("NOI" %in% names(pick(everything()))) last(NOI) - first(NOI) else NA_real_,
       .groups = "drop"
     )
 
@@ -172,12 +172,12 @@ if (nrow(driver_df) > 0) {
 # -----------------------------------------------------------------------------
 # 3. OPTIMUM
 # -----------------------------------------------------------------------------
-message("3. Optimum...")
+message("3. Configuration reference...")
 
 opt_df <- bind_rows(
-  read_and_label("results/optimum", "_deviation_from_optimum\\.tsv$", "shared"),
-  # [CORRECCIÓN] Carpeta cambiada a "results/full_optimum"
-  read_and_label("results/full_optimum", "_full_deviation_from_optimum\\.tsv$", "full") 
+  read_and_label("results/reference", "_deviation_from_reference\\.tsv$", "shared"),
+  # [CORRECCIÓN] Carpeta cambiada a "results/full_reference"
+  read_and_label("results/full_reference", "_full_deviation_from_reference\\.tsv$", "full") 
 )
 
 if (nrow(opt_df) > 0) {
@@ -190,7 +190,7 @@ if (nrow(opt_df) > 0) {
     select(-phys_order)
 
   fwrite(opt_df,
-         "results/summary/all_deviation_from_optimum.tsv", sep = "\t")
+         "results/summary/all_deviation_from_reference.tsv", sep = "\t")
 }
 
 # -----------------------------------------------------------------------------
