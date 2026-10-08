@@ -50,7 +50,9 @@ STAGE = ["healthy", "intermediate", "T2D"]
 NO_COVAR = False
 NO_BALANCE = False
 COVARS = {"bmi": ["bmi", "body mass index", "body_mass_index", "bodymassindex", "body mass"],
-          "age": ["age", "edad", "years"], "sex": ["sex", "gender"]}
+          "age": ["age", "edad", "years"], "sex": ["sex", "gender"],
+          "batch": ["batch", "lote", "array batch", "scan date", "hybridization batch"]}
+CATEGORICAL = {"sex", "batch"}
 # grupos de controles continuos: se calcula Fisher para cada grupo disponible
 CONTROL_GROUPS = {"hba1c":   ["hba1c", "hb a1c", "a1c", "glycated", "hemoglobin a1c"],
                   "glucose": ["fasting glucose", "fasting plasma glucose", "fpg", "glucose 0h", "glucose", "glucemia"]}
@@ -100,8 +102,18 @@ def residualize(Y, pheno, stage=None):
         c = find_col(pheno, names)
         if c is None: continue
         v = pheno[c]
-        if key == "sex": v = pd.Series(pd.factorize(v.astype(str).str.strip().str.lower())[0], index=v.index).astype(float)
-        v = pd.to_numeric(v.astype(str).str.replace(",", "."), errors="coerce").to_numpy() if key != "sex" else v.to_numpy()
+        if key in CATEGORICAL:
+            codes = pd.factorize(v.astype(str).str.strip().str.lower())[0]
+            if len(set(codes)) < 2: continue
+            # one-hot (menos una) para categoricas con >2 niveles
+            levels = sorted(set(codes))[1:]
+            for lv in levels:
+                vv = (codes == lv).astype(float)
+                if stage is not None:
+                    for g in np.unique(stage): vv[stage == g] -= vv[stage == g].mean()
+                X.append(vv)
+            cols.append(key); continue
+        v = pd.to_numeric(v.astype(str).str.replace(",", "."), errors="coerce").to_numpy()
         if np.isnan(v).mean() > 0.2: continue
         v = np.where(np.isnan(v), np.nanmean(v), v)
         if stage is not None:
@@ -344,6 +356,20 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
     except Exception:
         pass
     res.update(n_basins_gmmplane=n_basins_gp)
+    # [NEW] que separa la mezcla de 2 componentes: tabla componente x estadio (+ batch/sexo)
+    try:
+        comp = gm.predict(Z)
+        tab = pd.DataFrame({"component": comp, "stage": [STAGE[k] for k in st]})
+        for key in ("batch", "sex"):
+            c = find_col(pheno, COVARS[key])
+            if c is not None: tab[key] = pheno[c].astype(str).to_numpy()
+        ct = pd.crosstab(tab["component"], [tab[c] for c in tab.columns if c != "component"])
+        ct.to_csv(f"{out}/{acc}_gmm_components_crosstab.tsv", sep="\t")
+        # fraccion del estadio mejor explicada por la componente (0.5 = azar; 1 = separa sano/T2D)
+        st_tab = pd.crosstab(tab["component"], tab["stage"])
+        res.update(gmm_separates_stage=float((st_tab.max(0) / st_tab.sum(0)).mean()))
+    except Exception:
+        pass
     # Regla de decision (prefijada): dos atractores <=> cuencas persistentes
     # estables a traves de escalas Y mezcla de 2 componentes preferida por BIC.
     # Ninguna prueba sola basta (un continuo puede dar 2 cuencas a un solo h).
