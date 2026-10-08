@@ -178,10 +178,13 @@ def build_stalks(data, genes, betas, rng, r, n_by_tissue, label_perm=False,
             if corr_perm and t > 0:
                 E = E[rng.permutation(E.shape[0])]
             emb[(s, t)] = E
-    # referencia: media (tras alineacion iterativa) de los embeddings sanos
+    # [FIX-reference] referencia NEUTRA: media (tras alineacion iterativa) de los
+    # embeddings de TODOS los estadios y tejidos. Con referencia solo-sana, el
+    # estadio sano quedaba por construccion mas cerca de la referencia y E_sano
+    # salia menor (nulo de etiquetas con media 0.068 en vez de 0).
     ref = emb[(0, 0)]
-    for _ in range(2):
-        aligned = [procrustes_align(emb[(0, t)], ref) for t in range(T)]
+    for _ in range(3):
+        aligned = [procrustes_align(emb[(s, t)], ref) for s in range(3) for t in range(T)]
         ref = np.mean(aligned, 0)
     stalks = {s: [procrustes_align(emb[(s, t)], ref) for t in range(T)] for s in range(3)}
     return stalks
