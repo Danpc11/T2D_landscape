@@ -3,8 +3,14 @@
 # R  : download/QC, coexpression networks (WGCNA), metrics, bootstrap, drivers, limma.
 # Py : cross-tissue coherence (sheaf), quasi-potential landscape (U, J).
 set -uo pipefail
-WORKERS=32; QUICK=0; FROM=""
-for a in "$@"; do case $a in --workers=*) WORKERS="${a#*=}";; --quick) QUICK=1;; --from=*) FROM="${a#*=}";; esac; done
+WORKERS=32; QUICK=0; FROM=""; THREADS=4
+# [FIX-threads] limitar los hilos de BLAS/OpenMP/WGCNA de TODOS los procesos R
+# (padres y forks de mclapply) ANTES de lanzarlos: OpenBLAS lee estas variables al
+# arrancar, asi que fijarlas dentro de R llega tarde. Los workers PSOCK se limitan a
+# 1 hilo dentro de cada script. --threads=N cambia el valor (por defecto 4).
+for a in "$@"; do case $a in --workers=*) WORKERS="${a#*=}";; --quick) QUICK=1;; --from=*) FROM="${a#*=}";; --threads=*) THREADS="${a#*=}";; esac; done
+export OMP_NUM_THREADS=$THREADS OPENBLAS_NUM_THREADS=$THREADS MKL_NUM_THREADS=$THREADS \
+       ALLOW_WGCNA_THREADS=$THREADS BICOR_THREADS=$THREADS
 # --from=PASO reanuda desde ese paso (02, 03, 04, 02b, 03b, 04b, 04c, 05, sheaf, landscape)
 STEPS="02 03 04 02b 03b 04b 04c 05 sheaf landscape sheaf_b4 sheaf_b8 landscape_nocovar landscape_nobalance"
 SKIP=1; [ -z "$FROM" ] && SKIP=0
