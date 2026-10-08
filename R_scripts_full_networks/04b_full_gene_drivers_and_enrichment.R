@@ -41,6 +41,9 @@ if (any(.cli_flags == "--help")) {
 }
 
 options(stringsAsFactors = FALSE)
+# [FIX-threads] los forks de mclapply heredan BLAS; forzar 1 hilo por proceso
+Sys.setenv(OMP_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1", MKL_NUM_THREADS = "1")
+if (requireNamespace("RhpcBLASctl", quietly = TRUE)) RhpcBLASctl::blas_set_num_threads(1)
 
 # -----------------------------------------------------------------------------
 # HPC / Paralelismo
