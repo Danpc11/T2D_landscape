@@ -45,7 +45,10 @@ from scipy.spatial.distance import cdist
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 STATE_ORDERS = {"GSE76895": ["ND", "IGT", "T2D"], "GSE18732": ["ND", "IGT", "T2D"],
-                "GSE15653": ["Lean", "Obese_noT2D", "Obese_T2D"], "GSE27951": ["NGT", "IGT", "T2D"]}
+                "GSE15653": ["Lean", "Obese_noT2D", "Obese_T2D"], "GSE27951": ["NGT", "IGT", "T2D"],
+                # replicacion
+                "GSE164416": ["ND", "IGT", "T2D"], "GSE50244": ["ND", "PreD", "T2D"],
+                "GSE25462": ["ND", "ND_FH", "T2D"], "GSE64567": ["NGT", "IGT", "T2D"]}
 STAGE = ["healthy", "intermediate", "T2D"]
 NO_COVAR = False
 NO_BALANCE = False
@@ -511,7 +514,7 @@ def main():
     rows = []
     for acc in a.tissues:
         expr = pd.read_csv(os.path.join(a.export_dir, f"{acc}_expr.tsv"), sep="\t", index_col=0)
-        pheno = pd.read_csv(os.path.join(a.export_dir, f"{acc}_pheno.tsv"), sep="\t").dropna(subset=["condition"])
+        pheno = pd.read_csv(os.path.join(a.export_dir, f"{acc}_pheno.tsv"), sep="\t", dtype={".sample_id": str}).dropna(subset=["condition"])
         genes = [g for g in hv if g in expr.index]
         print(f"[{acc}] n={len(pheno)} genes={len(genes)}")
         r = analyse_tissue(acc, expr, pheno, genes, a.r, a.reps, a.B, rng, a.out); rows.append(r)
