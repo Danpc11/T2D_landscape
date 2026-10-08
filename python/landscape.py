@@ -366,8 +366,11 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
         ct = pd.crosstab(tab["component"], [tab[c] for c in tab.columns if c != "component"])
         ct.to_csv(f"{out}/{acc}_gmm_components_crosstab.tsv", sep="\t")
         # fraccion del estadio mejor explicada por la componente (0.5 = azar; 1 = separa sano/T2D)
-        st_tab = pd.crosstab(tab["component"], tab["stage"])
-        res.update(gmm_separates_stage=float((st_tab.max(0) / st_tab.sum(0)).mean()))
+        st_tab = pd.crosstab(tab["component"], tab["stage"]).to_numpy()
+        E_ = np.outer(st_tab.sum(1), st_tab.sum(0)) / st_tab.sum()
+        chi2 = ((st_tab - E_) ** 2 / (E_ + 1e-12)).sum()
+        res.update(gmm_cramers_v=float(np.sqrt(chi2 / (st_tab.sum() * (min(st_tab.shape) - 1)))),
+                   gmm_min_component_n=int(st_tab.sum(1).min()))
     except Exception:
         pass
     # Regla de decision (prefijada): dos atractores <=> cuencas persistentes
@@ -409,6 +412,23 @@ def analyse_tissue(acc, expr, pheno, genes, r, reps, B, rng, out, eps_rel=0.5):
         cH, cD = Z[st == 0].mean(0), Z[st == 2].mean(0); v = cD - cH
         t_igt = ((Z[st == 1] - cH) @ v) / (v @ v)
         res.update(igt_position_mean=t_igt.mean(), igt_position_sd=t_igt.std())
+
+    # --- [NEW] contraccion del espacio de estados: dispersion (tr cov) y entropia
+    #     diferencial gaussiana por estadio; bootstrap a n igual de sano - T2D ---
+    def disp_ent(Zs):
+        C = np.cov(Zs.T); return float(np.trace(C)), float(0.5 * np.linalg.slogdet(2 * np.pi * np.e * C)[1])
+    for s_ in range(3):
+        tr_, H_ = disp_ent(Z[st == s_]); res[f"dispersion_{STAGE[s_]}"] = tr_; res[f"entropy_{STAGE[s_]}"] = H_
+    # version libre de embedding: distancia euclidea media por pares en el espacio
+    # de genes residualizado (Yr), por estadio
+    for s_ in range(3):
+        Ys = Yr[st == s_]; D_ = cdist(Ys, Ys); res[f"meanpairdist_genes_{STAGE[s_]}"] = float(D_[np.triu_indices(len(Ys), 1)].mean())
+    nH, nD = (st == 0).sum(), (st == 2).sum(); n_eq = min(nH, nD); dd = []
+    for _ in range(max(200, B)):
+        h_ = Z[rng.choice(np.where(st == 0)[0], n_eq)]; t_ = Z[rng.choice(np.where(st == 2)[0], n_eq)]
+        dd.append(np.trace(np.cov(h_.T)) - np.trace(np.cov(t_.T)))
+    res.update(contraction_healthy_minus_T2D=float(np.mean(dd)),
+               contraction_CI_lo=float(np.percentile(dd, 2.5)), contraction_CI_hi=float(np.percentile(dd, 97.5)))
 
     # --- indice de transicion critica, n igualado, nulo por etiquetas ---
     n_min = min((st == s).sum() for s in range(3))
@@ -497,7 +517,7 @@ def main():
         r = analyse_tissue(acc, expr, pheno, genes, a.r, a.reps, a.B, rng, a.out); rows.append(r)
         print(f"   cuencas PC={r['n_basins_h10']} garantizadas={r['n_basins_guaranteed']}(tau={r['persistence_threshold_guaranteed']:.2f}) estables={r['basins_stable']} planoGMM={r['n_basins_gmmplane']} dBIC2={r['dBIC_2vs1']:.1f} "
               f"modos={r['modes_stage']} | barrera asim={r['barrier_asymmetry']:.2f} "
-              f"[{r['barrier_asym_CI_lo']:.2f},{r['barrier_asym_CI_hi']:.2f}] 2attr={r['two_attractors']} | Ic={r['Ic_healthy']:.2f}/{r['Ic_intermediate']:.2f}/{r['Ic_T2D']:.2f} "
+              f"[{r['barrier_asym_CI_lo']:.2f},{r['barrier_asym_CI_hi']:.2f}] 2attr={r['two_attractors']} | contraccion H-T2D={r['contraction_healthy_minus_T2D']:.0f} [{r['contraction_CI_lo']:.0f},{r['contraction_CI_hi']:.0f}] | Ic={r['Ic_healthy']:.2f}/{r['Ic_intermediate']:.2f}/{r['Ic_T2D']:.2f} "
               f"p={r['p_Ic_intermediate_max']:.3f} | Fisher {r['fisher_peaks']} | J/gradU={r['flux_ratio_J_over_gradU']:.2f} p_gt_null={r['p_flux_ratio_gt_null']:.3f}")
     pd.DataFrame(rows).to_csv(os.path.join(a.out, "landscape_summary.tsv"), sep="\t", index=False)
     json.dump(vars(a), open(os.path.join(a.out, "config.json"), "w"), indent=2)
