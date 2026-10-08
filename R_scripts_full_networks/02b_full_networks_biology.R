@@ -137,7 +137,7 @@ compute_adjacency_fast <- function(expr, cor_method = "bicor",
   # --- Correlacion: calcular UNA sola vez ---
   message("    bicor (1 vez)...")
   if (cor_method == "bicor") {
-    cor_mat <- bicor(expr_t, maxPOutliers = 0.1)
+    cor_mat <- bicor(expr_t, maxPOutliers = 0.1, nThreads = max(1L, as.integer(Sys.getenv("BICOR_THREADS", unset = "4"))))
   } else {
     cor_mat <- cor(expr_t, method = "pearson")
   }
