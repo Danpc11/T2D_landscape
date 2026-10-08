@@ -81,7 +81,21 @@ RNGkind("L'Ecuyer-CMRG")
 set.seed(1234)
 
 # [CORRECTED] Explicit cluster creation (PSOCK)
-cl <- makeCluster(n_workers)
+
+# [FIX-threads] un hilo por worker: sin esto cada worker abre tantos hilos de
+# bicor/BLAS como cores tiene el nodo (32 workers x 104 hilos -> sobresuscripcion).
+single_thread_workers <- function(cl) {
+  parallel::clusterEvalQ(cl, {
+    Sys.setenv(OMP_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1", MKL_NUM_THREADS = "1")
+    if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
+      RhpcBLASctl::blas_set_num_threads(1); RhpcBLASctl::omp_set_num_threads(1)
+    }
+    suppressMessages(WGCNA::disableWGCNAThreads())
+    NULL
+  })
+  invisible(cl)
+}
+cl <- makeCluster(n_workers); single_thread_workers(cl)
 registerDoParallel(cl)
 if (HAS_DORNG) registerDoRNG(1234)
 # [NEW] Enriquecimiento opcional: si faltan clusterProfiler/org.Hs.eg.db se omite
