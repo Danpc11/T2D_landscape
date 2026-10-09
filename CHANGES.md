@@ -1,5 +1,9 @@
 # Registro de cambios
 
+## v9.11 — repositorio al día
+
+- `.gitignore` (datos descargados, `results/`, `figures/`, caches) y mapa del repo actualizado en `README.md` con `docs/`, `python/analyses/09` y la generación de figuras.
+
 ## v9.10 — expresión diferencial canónica y revisión de maquetación
 
 - `python/analyses/09_classical_de.py`: DE clásica (T2D/obeso vs control, en reposo) y enriquecimiento por conjuntos curados en cuatro cohortes; encadenado en `run_replication.sh`.

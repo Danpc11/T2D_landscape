@@ -1,6 +1,15 @@
+# datos descargados y resultados: no se versionan (ver data/README.md)
 data/raw/
 data/export/
 results/
+figures/
 logs/
 gtex/
+*.rds
+*.pkl
+# python
 __pycache__/
+*.pyc
+.ipynb_checkpoints/
+# sistema
+.DS_Store

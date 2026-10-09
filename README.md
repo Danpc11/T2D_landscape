@@ -16,14 +16,24 @@ Code and documents for the paper *Insulin resistance is a loss of coordination, 
 README.md               this file
 THEORY.md               framework and formal definitions behind the measures (sheaf coherence, landscape, response geometry)
 CHANGES.md              changelog
-docs/                   manuscript draft, figure plan and legends, audit, replication table, gene-level exploration, roadmap
+docs/
+  MANUSCRIPT_CellMetab.md   manuscript draft
+  FIGURE_PLAN.md            what each figure claims and which panels prove it
+  FIGURE_LEGENDS.md         legend for every figure, panel by panel
+  AUDIT.md                  every claim re-tested: survives, weakened or withdrawn
+  REPLICATION.md            every cohort analysed and its verdict
+  TARGETS.md                gene-level exploration and candidate targets
+  ROADMAP.md, THEORY_RESULTS.md, DRAFT_STORY.md
 run_all.sh              discovery pipeline (R networks + python/sheaf_coherence.py + python/landscape.py)
 run_replication.sh      every other analysis in the paper, in order (python/analyses/01–08)
 R_scripts_*/            coexpression networks, metrics, bootstrap, drivers, limma
 python/sheaf_coherence.py, python/landscape.py
 python/lib/             geo.py (GEO readers, platform annotation), response.py (response geometry, LOO coherence, permutation tests)
-python/figures/         make_figures.py (Fig 1–5 from results/)
-python/analyses/        01 cohorts · 02 landscape replication · 03 GTEx · 04 insulin response · 05 resting muscle vs M · 06 myotubes · 07 supplementary · 08 audit
+python/figures/         make_figures.py (Fig 1–6 from results/; T2D_PANEL_TITLES=1 draws
+                        panel titles for internal review, off by default)
+python/analyses/        01 cohorts · 02 landscape replication · 03 GTEx · 04 insulin response ·
+                        05 resting muscle vs M · 06 myotubes · 07 supplementary · 08 audit ·
+                        09 classical differential expression and set enrichment
 python/simulation/      synthetic validations and power
 data/README.md          every input file and where to download it
 ```
@@ -38,7 +48,14 @@ bash run_all.sh --workers=32
 bash run_replication.sh
 ```
 
-Outputs land in `results/` (`response/`, `resting/`, `myotubes/`, `gtex/`, `replication/`, `supplementary/`, `audit/`). Figures and manuscript numbers are generated from these TSVs only.
+Outputs land in `results/` (`response/`, `resting/`, `myotubes/`, `gtex/`, `replication/`, `supplementary/`, `audit/`, `de/`).
+Then build the figures from those tables only:
+
+```bash
+python python/figures/make_figures.py        # writes figures/Fig1..Fig6 (.pdf and .png)
+```
+
+`data/raw/`, `data/export/`, `results/` and `figures/` are not versioned.
 
 ## Status
 
