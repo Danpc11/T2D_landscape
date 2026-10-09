@@ -1,5 +1,39 @@
 # Registro de cambios
 
+## v9.9 — sin títulos de panel
+
+- Los paneles ya no llevan título ni encabezados de fila dentro de la figura (convención Nature Portfolio): el contenido se describe en `docs/FIGURE_LEGENDS.md`, con un pie por figura y una frase por panel. Los `set_title` del script quedan como documentación y se dibujan solo con `T2D_PANEL_TITLES=1` para revisión interna. Alturas ajustadas al espacio liberado; etiquetas de grupo (IS/IR/T2D) dentro de los paneles polares y aluviales.
+
+## v9.8 — estilo tipográfico
+
+- Jerarquía como en figuras de referencia: 3 paneles por fila, letras de panel 13 pt, títulos que afirman el resultado, ejes 8–9.5 pt, líneas 2 pt, marcadores grandes, etiquetas directas, paleta de dos colores + negro. Fig 1 y Fig 4 reducidas a 2×3; lo secundario a Extended Data (ED_Fig1 robustez y sangre; ED_Fig4 artefacto de biopsia; ED_Fig5 reloj, células y destino del programa).
+
+## v9.7 — estética de los paneles
+
+- Rosas de los vientos para la dirección de respuesta por persona (Fig 5d), relojes polares para la salida del reloj por grupo (Fig 5f), diagramas aluviales para el destino del programa (Fig 5i), coordenadas paralelas por donante frente a barajado (Fig 1d); helpers en `python/lib/response.py` (`rose`, `chord`, `alluvial`). `03b` escribe `donor_scores.tsv`.
+
+## v9.6 — Fig 2 «dónde está la enfermedad»
+
+- Nueva figura entre el estado sistémico y el músculo: búsqueda órgano por órgano en reposo y bajo insulina, con el mapa de evidencia que justifica el músculo. Seis figuras principales.
+
+## v9.5 — figuras de la historia final
+
+- Cinco figuras (estado sistémico y continuo → basal ciego → respuesta sana → fragmentación → adiposo e intervenciones); fuera de figura lo que no está en la historia.
+- Puntos individuales con media ± s.d., corchetes de P, nulos como violines/bandas, leyendas fuera de los datos, letras de panel colocadas por geometría tras el layout, títulos de hasta tres líneas alineados a la izquierda.
+
+## v9.4 — estilo Nature Portfolio
+
+- Figuras a 180 mm de ancho (doble columna), Arial/Helvetica (Liberation Sans como sustituto), texto 5.5–6.5 pt, letras de panel 8 pt en negrita, líneas ≥ 0.5 pt, `constrained_layout` para evitar solapes; fuentes embebidas (Type 42) en PDF.
+
+## v9.3 — figuras multipanel
+
+- Seis figuras siguiendo `docs/FIGURE_PLAN.md` (órganos → continuo → basal → respuesta sana → fragmentación → adiposo), cada una con esquema, paneles de prueba y comprobaciones; nulos siempre como distribuciones; conjuntos de genes curados (SETS en `make_figures.py`) con nulo de conjuntos aleatorios en lugar de GSEA externo.
+
+## v9.2 — figuras
+
+- `python/figures/make_figures.py`: Fig 1–5 generadas solo desde `results/` (más `data/raw` para los vectores de GSE22309). `figures/` no se versiona; se regenera.
+- Título provisional del manuscrito: *Insulin resistance fragments a coordinated, clock-coupled transcriptional response in humans*.
+
 ## v9.1 — repositorio del artículo
 
 - Raíz reducida a `README.md`, `THEORY.md` (marco conceptual + definiciones formales en un solo documento) y `CHANGES.md`.

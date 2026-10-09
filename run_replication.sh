@@ -12,4 +12,5 @@ step "05 resting muscle vs M"           python python/analyses/05_resting_muscle
 step "06 myotube clock"                 python python/analyses/06_myotube_clock.py
 step "07 supplementary"                 python python/analyses/07_remission_and_blood.py
 step "08 audit: Fisher null"            python python/analyses/08_audit_fisher_null.py
+step "09 classical DE + enrichment"     python python/analyses/09_classical_de.py
 echo "done: results/response, results/resting, results/myotubes, results/gtex, results/replication, results/supplementary, results/audit"

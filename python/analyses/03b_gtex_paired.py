@@ -44,6 +44,10 @@ print("[con RIN + tiempo isquemico + lote por muestra regresados]"); print(f"F1 
 def pcs(x,r=5):
     Z=(x.T-x.T.mean(0))/ (x.T.std(0)+1e-9); U_,S,Vt=np.linalg.svd(Z,full_matrices=False); return U_[:,:r]*S[:r]
 P={k:pcs(x) for k,x in Xh.items()}
+# variantes canonicas por donante (para la figura de coordenadas paralelas)
+def _cca_vars(A,B): qa,_=np.linalg.qr(A-A.mean(0)); qb,_=np.linalg.qr(B-B.mean(0)); u,s,vt=np.linalg.svd(qa.T@qb); return qa@u[:,0], qb@vt[0]
+ua,ub=_cca_vars(P["muscle"],P["adipose"]); um_,upan=_cca_vars(P["muscle"],P["pancreas"]); upan=-upan if np.corrcoef(um_,ua)[0,1]<0 else upan
+pd.DataFrame({"muscle":ua,"adipose":ub,"pancreas":upan},index=donors).to_csv(f"{OUT}/donor_scores.tsv",sep="\t")
 def cca_r(A,B):
     # primera correlacion canonica
     qa,_=np.linalg.qr(A-A.mean(0)); qb,_=np.linalg.qr(B-B.mean(0)); return np.linalg.svd(qa.T@qb,compute_uv=False)[0]

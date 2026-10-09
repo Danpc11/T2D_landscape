@@ -16,12 +16,13 @@ Code and documents for the paper *Insulin resistance is a loss of coordination, 
 README.md               this file
 THEORY.md               framework and formal definitions behind the measures (sheaf coherence, landscape, response geometry)
 CHANGES.md              changelog
-docs/                   manuscript draft, audit of every claim, replication table, gene-level exploration, roadmap
+docs/                   manuscript draft, figure plan and legends, audit, replication table, gene-level exploration, roadmap
 run_all.sh              discovery pipeline (R networks + python/sheaf_coherence.py + python/landscape.py)
 run_replication.sh      every other analysis in the paper, in order (python/analyses/01–08)
 R_scripts_*/            coexpression networks, metrics, bootstrap, drivers, limma
 python/sheaf_coherence.py, python/landscape.py
 python/lib/             geo.py (GEO readers, platform annotation), response.py (response geometry, LOO coherence, permutation tests)
+python/figures/         make_figures.py (Fig 1–5 from results/)
 python/analyses/        01 cohorts · 02 landscape replication · 03 GTEx · 04 insulin response · 05 resting muscle vs M · 06 myotubes · 07 supplementary · 08 audit
 python/simulation/      synthetic validations and power
 data/README.md          every input file and where to download it

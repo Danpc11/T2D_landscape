@@ -1,4 +1,4 @@
-# Insulin resistance is a loss of coordination, not of signal: the human muscle transcriptome responds to insulin along one shared direction that insulin-resistant muscle no longer follows
+# Insulin resistance fragments a coordinated, clock-coupled transcriptional response in humans
 
 ## Highlights
 
