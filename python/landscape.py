@@ -48,13 +48,16 @@ STATE_ORDERS = {"GSE76895": ["ND", "IGT", "T2D"], "GSE18732": ["ND", "IGT", "T2D
                 "GSE15653": ["Lean", "Obese_noT2D", "Obese_T2D"], "GSE27951": ["NGT", "IGT", "T2D"],
                 # replicacion
                 "GSE164416": ["ND", "IGT", "T2D"], "GSE50244": ["ND", "PreD", "T2D"],
-                "GSE25462": ["ND", "ND_FH", "T2D"], "GSE64567": ["NGT", "IGT", "T2D"]}
+                "GSE25462": ["ND", "ND_FH", "T2D"], "GSE64567": ["NGT", "IFG", "T2D"],
+                "GSE59034": ["never_obese", "obese_after", "obese_before"],
+                "METSIM": ["normal", "overweight", "obese"], "GSE50398": ["ND", "PreD", "T2D"]}
 STAGE = ["healthy", "intermediate", "T2D"]
 NO_COVAR = False
 NO_BALANCE = False
 COVARS = {"bmi": ["bmi", "body mass index", "body_mass_index", "bodymassindex", "body mass"],
           "age": ["age", "edad", "years"], "sex": ["sex", "gender"],
-          "batch": ["batch", "lote", "array batch", "scan date", "hybridization batch"]}
+          "batch": ["batch", "lote", "array batch", "scan date", "hybridization batch"],
+          "tin": ["tin", "transcript integrity", "rin"]}
 CATEGORICAL = {"sex", "batch"}
 # grupos de controles continuos: se calcula Fisher para cada grupo disponible
 CONTROL_GROUPS = {"hba1c":   ["hba1c", "hb a1c", "a1c", "glycated", "hemoglobin a1c"],
