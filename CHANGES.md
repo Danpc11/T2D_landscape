@@ -1,5 +1,11 @@
 # Registro de cambios
 
+## v9.10 — expresión diferencial canónica y revisión de maquetación
+
+- `python/analyses/09_classical_de.py`: DE clásica (T2D/obeso vs control, en reposo) y enriquecimiento por conjuntos curados en cuatro cohortes; encadenado en `run_replication.sh`.
+- Fig 2g,h: recuento de genes a FDR < 0.1 por cohorte y mapa de calor de enriquecimiento (islote y adiposo recuperan las firmas esperadas; músculo da 2 genes). Fig 1i: genes del eje sistémico compartido, para comparar drivers canónicos y propios.
+- Revisión visual de las seis figuras: leyendas fuera de los datos, letras de panel separadas, etiquetas de genes sin solapes.
+
 ## v9.9 — sin títulos de panel
 
 - Los paneles ya no llevan título ni encabezados de fila dentro de la figura (convención Nature Portfolio): el contenido se describe en `docs/FIGURE_LEGENDS.md`, con un pie por figura y una frase por panel. Los `set_title` del script quedan como documentación y se dibujan solo con `T2D_PANEL_TITLES=1` para revisión interna. Alturas ajustadas al espacio liberado; etiquetas de grupo (IS/IR/T2D) dentro de los paneles polares y aluviales.

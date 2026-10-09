@@ -98,7 +98,7 @@ for a, b in [((3.6, 7.4), (6.4, 7.4)), ((3.0, 6.4), (4.4, 3.6)), ((7.0, 6.4), (5
 pass; ax.set_title("Cellular sheaf over\nthe tissue graph")
 ax = fig.add_subplot(gs[0, 1]); L.append((ax, "b")); st = ["healthy", "intermediate", "T2D"]; Eobs = [1.747, 1.803, 1.806]; Enull = [1.872, 1.919, 1.922]; Esd = [0.012, 0.013, 0.017]
 ax.errorbar(range(3), Enull, yerr=[1.96 * s for s in Esd], fmt="s", color=C["grey"], ms=4, capsize=2, label="gene-correspondence null"); ax.plot(range(3), Eobs, "o-", color=C["IS"], ms=4, label="observed")
-ax.set_xticks(range(3)); ax.set_xticklabels(st); ax.set_ylabel("sheaf energy"); ax.set_ylim(1.72, 2.02); ax.set_xlim(-0.35, 2.75); ax.set_title("Three organs"); ax.legend(frameon=False, loc="center right", fontsize=7.5)
+ax.set_xticks(range(3)); ax.set_xticklabels(["healthy", "interm.", "T2D"]); ax.set_ylabel("sheaf energy"); ax.set_ylim(1.70, 2.04); ax.set_xlim(-0.35, 2.35); ax.set_title("Three organs"); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=7.5)
 ax = fig.add_subplot(gs[0, 2]); L.append((ax, "c")); nul = rng.normal(1.905, 0.037, 300); ax.hist(nul, bins=25, color=C["null"]); ax.axvline(0.953, color=C["IS"], lw=1.5); ax.set_xlim(0.85, 2.05); ax.set_xlabel("sheaf energy"); ax.set_ylabel("null draws"); ax.set_title("GTEx, paired organs\nof 253 donors\n(z = −26)"); ax.text(0.953, ax.get_ylim()[1] * 0.98, " observed", color=C["IS"], fontsize=7.5, va="top")
 sub = gs[1, 0].subgridspec(1, 2, wspace=0.45)
 try:
@@ -119,14 +119,14 @@ ax = fig.add_subplot(gs[1, 2]); L.append((ax, "f")); ax.scatter(range(3), [0.296
 ax = fig.add_subplot(gs[2, 0]); L.append((ax, "g"))
 for j, (hcol, mk, lab_) in enumerate([("n_basins_h07", "v", "narrow"), ("n_basins_h10", "o", "median"), ("n_basins_h14", "^", "wide")]):
     ax.scatter(np.arange(len(cols)) + (j - 1) * 0.22, [rows[a][hcol] if a in rows else np.nan for a in cols], marker=mk, s=12, color=C["IS"], label=f"{lab_} bandwidth")
-ax.set_xticks(range(len(cols))); ax.set_xticklabels(labs, rotation=50, ha="right", fontsize=7.5); ax.set_ylim(0.5, 3.8); ax.set_yticks([1, 2, 3]); ax.set_ylabel("basins above τ"); ax.set_title("No cohort keeps a second basin"); ax.set_ylim(0.5, 3.5); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, 1.26), fontsize=7, ncol=3, columnspacing=0.8, handletextpad=0.3)
+ax.set_xticks(range(len(cols))); ax.set_xticklabels(labs, rotation=50, ha="right", fontsize=7.5); ax.set_ylim(0.5, 3.8); ax.set_yticks([1, 2, 3]); ax.set_ylabel("basins above τ"); ax.set_title("No cohort keeps a second basin"); ax.set_ylim(0.6, 3.5); ax.set_yticks([1, 2, 3]); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, 1.3), fontsize=7, ncol=3, columnspacing=0.7, handletextpad=0.2)
 ax = fig.add_subplot(gs[2, 1:]); L.append((ax, "h")); emb = None
 for path in [f"{RES}/replication/GSE50244/GSE50244_embedding_potential.tsv"]:
     if os.path.exists(path): emb = pd.read_csv(path, sep="\t")
 if emb is not None:
     for s_, col in [("healthy", C["IS"]), ("intermediate", C["IR"]), ("T2D", C["T2D"])]:
         q = emb[emb.stage == s_]; ax.scatter(q.pc1, q.pc2, s=8, color=col, alpha=0.85, lw=0, label=f"{s_} (n = {len(q)})")
-    ax.set_xlabel("PC1"); ax.set_ylabel("PC2"); ax.set_title("Continuous drift"); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, 1.18), fontsize=7.5, ncol=3, columnspacing=1.0, handletextpad=0.3)
+    ax.set_xlabel("PC1"); ax.set_ylabel("PC2"); ax.set_title("Continuous drift"); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.22), fontsize=7.5, ncol=3, columnspacing=1.2, handletextpad=0.3)
 ax = fig.add_subplot(gs[3, :]); L.append((ax, "i"))
 try:
     axg = pd.read_csv(f"{RES}/gtex/systemic_axis_genes.tsv", sep="\t", index_col=0); axg = axg[axg.same_sign].sort_values("min_abs", ascending=False).head(28)
@@ -138,7 +138,7 @@ except FileNotFoundError: ax.text(0.5, 0.5, "run 03c", ha="center", transform=ax
 save(fig, "Fig1_systemic_state", L)
 
 # ================= Fig 2: donde esta la enfermedad, tejido por tejido =================
-fig = plt.figure(figsize=(W, 9.6)); gs = fig.add_gridspec(4, 3, height_ratios=[0.95, 1, 1, 1.15], left=0.105, right=0.97, top=0.96, bottom=0.05, hspace=0.75, wspace=0.55); L = []
+fig = plt.figure(figsize=(W, 10.4)); gs = fig.add_gridspec(4, 3, height_ratios=[0.95, 1, 1, 1.25], left=0.105, right=0.97, top=0.96, bottom=0.05, hspace=0.95, wspace=0.75); L = []
 tis = {"GSE76895": ("islet", "disc."), "GSE164416": ("islet", "living"), "GSE50244": ("islet", "RNA-seq"), "GSE50398": ("islet", "array"), "GSE18732": ("muscle", "disc."), "GSE25462": ("muscle", "repl."), "GSE27951": ("adipose", "disc."), "METSIM": ("adipose", "BMI")}
 tcol = {"islet": "#6b46c1", "muscle": C["IS"], "adipose": C["IR"]}
 # --- fila 1: diseno (a, ancho 2) y coherencia entre organos (b) ---
@@ -151,7 +151,7 @@ for i_, (t, n, d) in enumerate([("islet", "4  (18–89 per stage)", "none"), ("m
     ax.text(0, y, t, fontsize=9.5, color=tcol[t], fontweight="bold", va="center"); ax.text(2.6, y, n, fontsize=8.5, va="center"); ax.text(6.0, y, d, fontsize=8.5, va="center")
 ax.set_title("Where is the disease? Three organs searched at rest and under insulin")
 ax = fig.add_subplot(gs[0, 2]); L.append((ax, "b")); ax.errorbar(range(3), [1.872, 1.919, 1.922], yerr=[0.024, 0.026, 0.034], fmt="s", color=C["grey"], ms=6, capsize=3, label="null"); ax.plot(range(3), [1.747, 1.803, 1.806], "o-", color="k", ms=6, label="observed")
-ax.set_xticks(range(3)); ax.set_xticklabels(["healthy", "interm.", "T2D"]); ax.set_ylabel("sheaf energy (3 organs)"); ax.set_xlim(-0.4, 2.6); ax.set_ylim(1.72, 2.00); ax.legend(frameon=False, loc="lower right", fontsize=7.5); ax.set_title("Between organs: coherence\nweakens with stage (no stage\ndifference significant)")
+ax.set_xticks(range(3)); ax.set_xticklabels(["healthy", "interm.", "T2D"]); ax.set_ylabel("sheaf energy (3 organs)"); ax.set_xlim(-0.4, 2.4); ax.set_ylim(1.70, 2.02); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2, fontsize=7.5); ax.set_title("Between organs: coherence\nweakens with stage (no stage\ndifference significant)")
 # --- fila 2: en reposo, nada (c, d) ---
 ax = fig.add_subplot(gs[1, 0:2]); L.append((ax, "c"))
 for acc, (t, lab_) in tis.items():
@@ -181,15 +181,15 @@ for i_, (org, rest, resp, fails) in enumerate([("islet", "none", "no paired data
     y = 0.88 - 0.33 * i_
     if org == "muscle": ax.add_patch(plt.Rectangle((0, y - 0.26), 1, 0.35, fc="#eef3fb", ec="none", zorder=0))
     ax.text(0.02, y, org, fontsize=9.5, color=tcol[org], fontweight="bold", va="center")
-    ax.text(0.02, y - 0.085, f"at rest: {rest}", fontsize=8, va="center"); ax.text(0.02, y - 0.155, f"in the response: {resp}", fontsize=8, va="center")
+    ax.text(0.02, y - 0.085, f"at rest: {rest}", fontsize=8, va="center"); ax.text(0.02, y - 0.155, f"in the response: {resp}", fontsize=7.5, va="center")
     if fails != "—": ax.text(0.02, y - 0.225, f"what fails: {fails}", fontsize=8, va="center", style="italic")
 ax.set_title("Muscle is where the response\nfragments and where paired data\nexist in all three states")
 # --- fila 4: la lectura canonica (expresion diferencial en reposo) ---
 if de_sum is not None:
-    ax = fig.add_subplot(gs[3, 0]); L.append((ax, "g")); lab2 = [f"{r.tissue}\n{r.acc}" for r in de_sum.itertuples()]
+    ax = fig.add_subplot(gs[3, 0]); L.append((ax, "g")); lab2 = [f"{r.tissue}\n{r.acc.replace('GSE', 'GSE ')}" for r in de_sum.itertuples()]
     ax.scatter(range(len(de_sum)), de_sum.n_fdr10, s=80, color=[tcol[t] for t in de_sum.tissue], zorder=3); ax.vlines(range(len(de_sum)), 1, de_sum.n_fdr10.clip(lower=1), color=[tcol[t] for t in de_sum.tissue], lw=2)
-    ax.set_yscale("symlog", linthresh=1); ax.set_ylim(0, 2e4); ax.set_xticks(range(len(de_sum))); ax.set_xticklabels([l.replace("\n", "\n") for l in lab2], rotation=35, ha="right", fontsize=7); ax.set_ylabel("genes at FDR < 0.1"); ax.set_xlim(-0.6, len(de_sum) - 0.4)
-    for i_, r in enumerate(de_sum.itertuples()): ax.text(i_, max(r.n_fdr10, 1) * 2.2, f"{r.n_fdr10:,}", ha="center", fontsize=7.5)
+    ax.set_yscale("symlog", linthresh=1); ax.set_ylim(0, 6e4); ax.set_xticks(range(len(de_sum))); ax.set_xticklabels(lab2, fontsize=6.5); ax.set_ylabel("genes at FDR < 0.1"); ax.set_xlim(-0.6, len(de_sum) - 0.4)
+    for i_, r in enumerate(de_sum.itertuples()): ax.text(i_, max(r.n_fdr10, 1) * 2.0, f"{r.n_fdr10:,}", ha="center", fontsize=7.5)
     ax.set_title("Classical differential expression at rest")
     ax = fig.add_subplot(gs[3, 1:]); L.append((ax, "h"))
     piv = de_set.pivot_table(index="set", columns="acc", values="z"); pp_ = de_set.pivot_table(index="set", columns="acc", values="p")
@@ -211,13 +211,13 @@ for k_, t in enumerate(["49 individuals, two laboratories", "24 normal glucose t
 ax.text(-0.08, 0.1, "model: expression ~ laboratory + age + BMI,\nthen ρ(residual, M-value) genome-wide", fontsize=8, va="center", bbox=dict(boxstyle="round,pad=0.4", fc="#f4f4f4", ec="none"))
 ax.set_title("Design: does the resting muscle\ntranscriptome know how insulin-\nsensitive its owner is?")
 ax = fig.add_subplot(gs[0, 1]); L.append((ax, "b")); p = np.sort(gw.p_M.values); exp = -np.log10((np.arange(len(p)) + 0.5) / len(p)); ax.scatter(exp, -np.log10(p), s=4, color=C["grey"], lw=0); lim = max(exp.max(), (-np.log10(p)).max()); ax.plot([0, lim], [0, lim], "k-", lw=0.9)
-for gname, dx, dy in [("PPARGC1A", 7, 2), ("PDK4", 7, -8), ("TXNIP", -7, 4)]:
+for gname, dx, dy in [("PPARGC1A", 8, 6), ("PDK4", 8, -10), ("TXNIP", -8, 2)]:
     if gname in gw.index:
         xx = -np.log10((gw.p_M.rank().loc[gname] - 0.5) / len(gw)); yy = -np.log10(gw.p_M.loc[gname]); ax.scatter(xx, yy, s=40, color=C["IS"], zorder=3)
         ax.annotate(gname, (xx, yy), fontsize=8, xytext=(dx, dy), textcoords="offset points", ha="right" if dx < 0 else "left")
 ax.set_xlabel("expected −log10 P"); ax.set_ylabel("observed −log10 P"); ax.set_title(f"No gene tracks insulin sensitivity\n({len(gw):,} genes, 0 at FDR < 0.1;\nknown markers in blue)")
 ax = fig.add_subplot(gs[0, 2]); L.append((ax, "c")); ax.scatter(gw.t_T2D_vs_NGT, -np.log10(gw.p_T2D), s=4, color=C["grey"], lw=0); ax.axhline(-np.log10(0.05), color="k", lw=0.8, ls="--")
-for gname, dx, dy in [("PDK4", 7, 2), ("PPARGC1A", -7, -2)]:
+for gname, dx, dy in [("PDK4", 8, 4), ("PPARGC1A", -8, -6)]:
     if gname in gw.index: ax.scatter(gw.t_T2D_vs_NGT.loc[gname], -np.log10(gw.p_T2D.loc[gname]), s=40, color=C["IS"], zorder=3); ax.annotate(gname, (gw.t_T2D_vs_NGT.loc[gname], -np.log10(gw.p_T2D.loc[gname])), fontsize=8, xytext=(dx, dy), textcoords="offset points", ha="right" if dx < 0 else "left")
 ax.set_xlabel("t, T2D vs NGT (resting)"); ax.set_ylabel("−log10 P"); ax.set_title("Nor does the diagnosis itself\n(0 genes at FDR < 0.1)")
 ax = fig.add_subplot(gs[1, 0:2]); L.append((ax, "d")); set_panel(ax, set_scores(gw.rho_M), "Not even as gene sets: only the oxidative programme moves at all\n(grey: random sets of equal size, 95%)", "mean |ρ| with M-value")
@@ -271,7 +271,7 @@ ax.set_xticks([0, 1]); ax.set_xticklabels(["IS − IR", "IS − T2D"]); ax.set_y
 ax = fig.add_subplot(gs[0, 2]); L.append((ax, "c"))
 for i, k in enumerate(["IS", "IR", "T2D"]):
     full = g("GSE22309_muscle_4h", k, "coherence_loo"); same = g("GSE22309_muscle_4h_sameRun", k, "coherence_loo"); nsame = int(g("GSE22309_muscle_4h_sameRun", k, "n"))
-    ax.plot([i - 0.18, i + 0.18], [full, same], color=C[k], lw=1.5); ax.scatter(i - 0.18, full, s=70, facecolors="white", edgecolors=C[k], lw=1.8, zorder=3); ax.scatter(i + 0.18, same, s=70, color=C[k], zorder=3); ax.text(i + 0.18, same - 0.09, f"n = {nsame}", ha="center", fontsize=8)
+    ax.plot([i - 0.18, i + 0.18], [full, same], color=C[k], lw=1.5); ax.scatter(i - 0.18, full, s=70, facecolors="white", edgecolors=C[k], lw=1.8, zorder=3); ax.scatter(i + 0.18, same, s=70, color=C[k], zorder=3); ax.text(i + 0.18, same - 0.11, f"n = {nsame}", ha="center", fontsize=8)
 ax.text(0.25, 0.93, "open: all pairs   filled: same-batch pairs", fontsize=8, color=C["grey"], transform=ax.transAxes); ax.set_xticks(range(3)); ax.set_xticklabels(["IS", "IR", "T2D"]); ax.set_ylim(0, 1.05); ax.set_xlim(-0.6, 2.6); ax.set_ylabel("coherence (LOO)"); ax.set_title("The effect survives restriction\nto same-batch biopsy pairs")
 # d rosas (3 polares en una celda)
 cs = {}
@@ -282,15 +282,15 @@ for k, key in enumerate(["IS", "IR", "T2D"]):
     if k == 0: L.append((axp, "d")); _rowtext(f"Each person's response direction, healthy direction at north: healthy people point together,\ninsulin-resistant people point everywhere (group cosine IS–T2D {cosT.observed.iloc[0]:.2f}, null {cosT.null_mean.iloc[0]:.2f}, {ptxt(cosT.p.iloc[0])})", fontsize=9.5, va="bottom")
 # e replicacion
 ax = fig.add_subplot(gs[1, 2]); L.append((ax, "e")); rep = [("IS, GSE22309", "GSE22309_muscle_4h", "IS", C["IS"]), ("healthy 4 h, GSE9105", "GSE9105_muscle_healthy", "240min", C["IS"]), ("IR, GSE22309", "GSE22309_muscle_4h", "IR", C["IR"]), ("prediabetes, GSE157988\nplacebo arm", "GSE157988_muscle_prediabetes_clamp", "Placebo_before", C["IR"]), ("prediabetes, GSE157988\nNMN arm", "GSE157988_muscle_prediabetes_clamp", "NMN_before", C["IR"]), ("T2D, GSE22309", "GSE22309_muscle_4h", "T2D", C["T2D"])]
-for i, (lab_, ds, gr, col) in enumerate(rep): v = g(ds, gr, "coherence_loo"); ax.hlines(i, 0, v, color=col, lw=2.2); ax.scatter(v, i, color=col, s=70, zorder=3); ax.text(max(v, 0) + 0.03, i, f"n = {int(g(ds, gr, 'n'))}", va="center", fontsize=8)
+for i, (lab_, ds, gr, col) in enumerate(rep): v = g(ds, gr, "coherence_loo"); ax.hlines(i, 0, v, color=col, lw=2.2); ax.scatter(v, i, color=col, s=70, zorder=3); ax.text(max(v, 0) - 0.03, i, f"n = {int(g(ds, gr, 'n'))}", va="center", ha="right", fontsize=7.5, color="w" if v > 0.2 else "k")
 ax.set_yticks(range(len(rep))); ax.set_yticklabels([r[0] for r in rep], fontsize=8); ax.yaxis.tick_right(); ax.spines["left"].set_visible(False); ax.spines["right"].set_visible(True); ax.tick_params(axis="y", length=0); ax.set_xlim(-0.05, 1.1); ax.axvline(0, color="k", lw=0.8); ax.set_xlabel("coherence (LOO)"); ax.invert_yaxis(); ax.set_title("Low coherence replicates in\nprediabetes (independent lab)")
 genes = [x for x in ["DBP", "TEF", "HLF", "PER2", "NR1D2", "BHLHE40"] if x in clk.gene.values]; th = np.linspace(0, 2 * np.pi, len(genes), endpoint=False); vmax = 0.55
 for k, key in enumerate(["IS", "IR", "T2D"]):
     axp = fig.add_subplot(gs[2, k], projection="polar"); vals = np.array([clk[clk.gene == gn].resp_IS.iloc[0] if key == "IS" else clk[(clk.gene == gn) & (clk.vs == key)].resp_other.iloc[0] for gn in genes])
     light = {"IS": "#9ec9d8", "IR": "#f0b48e", "T2D": "#d9a39f"}[key]
     axp.bar(th, np.minimum(np.abs(vals), vmax), width=2 * np.pi / len(genes) * 0.75, bottom=0, color=[C[key] if v < 0 else light for v in vals], edgecolor="white", lw=0.5)
-    axp.set_theta_zero_location("N"); axp.set_theta_direction(-1); axp.set_xticks(th); axp.set_xticklabels(genes, fontsize=8); axp.set_ylim(0, vmax); axp.set_yticks([0.25, 0.5]); axp.set_yticklabels(["0.25", "0.5"], fontsize=7); axp.spines["polar"].set_linewidth(0.6); axp.tick_params(pad=3)
-    axp.text(0.5, 1.12, key, transform=axp.transAxes, ha="center", color=C[key], fontsize=9.5, fontweight="bold")
+    axp.set_theta_zero_location("N"); axp.set_theta_direction(-1); axp.set_xticks(th); axp.set_xticklabels(genes, fontsize=8); axp.set_ylim(0, vmax); axp.set_yticks([0.25, 0.5]); axp.set_yticklabels(["0.25", "0.5"], fontsize=7); axp.spines["polar"].set_linewidth(0.6); axp.tick_params(axis="x", pad=6); axp.set_rlabel_position(22)
+    axp.text(-0.12, 1.16, key, transform=axp.transAxes, ha="left", color=C[key], fontsize=9.5, fontweight="bold")
     for i, gn in enumerate(genes):
         r = clk[(clk.gene == gn) & (clk.vs == "IR")]; r2 = clk[(clk.gene == gn) & (clk.vs == "T2D")]
         if key == "IR" and len(r) and r.fdr.iloc[0] < 0.05: axp.text(th[i], vmax * 0.85, "*", ha="center", va="center", fontsize=12)
