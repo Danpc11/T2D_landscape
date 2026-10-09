@@ -1,4 +1,4 @@
-# t2d_landscape
+# T2D landscape
 
 Code and documents for the paper *Insulin resistance is a loss of coordination, not of signal* — a reanalysis of 23 public human transcriptomic cohorts (islet, skeletal muscle, adipose tissue, blood; GTEx paired tissues; hyperinsulinaemic-clamp biopsies) asking whether the information about insulin sensitivity is in how muscle *is* or in how it *responds*.
 
