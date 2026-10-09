@@ -33,5 +33,8 @@ for acc, tis in [("GSE164416", "islet"), ("GSE50244", "islet"), ("GSE25462", "mu
         if len(gg) < 4: continue
         obs = tt.loc[gg].mean(); null = np.array([tt.sample(len(gg), random_state=int(rng.integers(1e9))).mean() for _ in range(2000)])
         setrows.append(dict(acc=acc, tissue=tis, set=name, n=len(gg), mean_t=obs, null_mean=null.mean(), null_sd=null.std(), z=(obs - null.mean()) / null.std(), p=(np.sum(null >= obs) + 1) / 2001))
-pd.DataFrame(rows).to_csv(f"{OUT}/de_summary.tsv", sep="\t", index=False); pd.DataFrame(setrows).to_csv(f"{OUT}/de_set_enrichment.tsv", sep="\t", index=False)
+if not rows:
+    print("no cohorts found under", E, "- run 01 first"); raise SystemExit(1)
+pd.DataFrame(rows).to_csv(f"{OUT}/de_summary.tsv", sep="\t", index=False)
+se = pd.DataFrame(setrows); se["z"] = (se.mean_t - se.null_mean) / se.null_sd; se.to_csv(f"{OUT}/de_set_enrichment.tsv", sep="\t", index=False)
 print(pd.DataFrame(rows).to_string(index=False))

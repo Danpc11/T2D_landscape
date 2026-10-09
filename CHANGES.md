@@ -2,7 +2,11 @@
 
 ## v9.11 — repositorio al día
 
-- `.gitignore` (datos descargados, `results/`, `figures/`, caches) y mapa del repo actualizado en `README.md` con `docs/`, `python/analyses/09` y la generación de figuras.
+- `.gitignore` (datos descargados, `results/`, `figures/`, caches) y mapa del repo actualizado en `README.md`: `docs/` desglosado, pasos 01–09, generación de figuras y variables de entorno (`T2D_RAW`, `T2D_EXPORT`, `T2D_RES`, `T2D_OUT`, `T2D_FIG`).
+- `run_replication.sh`: un log por paso con el nombre del script (antes todos se llamaban `python.log`), exporta `T2D_EXPORT` y encadena la generación de figuras al final.
+- `02_run_replication_landscape.sh`: ruta de `landscape.py` corregida y respeta `T2D_EXPORT`; `--quick` ya no duplica argumentos.
+- `09_classical_de.py` falla con mensaje claro si no hay cohortes exportadas en lugar de escribir tablas vacías; `make_figures.py` tolera tablas ausentes o vacías.
+- Título del repositorio alineado con el del manuscrito y nota sobre el reenfoque a Nature Metabolism.
 
 ## v9.10 — expresión diferencial canónica y revisión de maquetación
 

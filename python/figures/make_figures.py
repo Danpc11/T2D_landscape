@@ -68,8 +68,12 @@ clk = pd.read_csv(f"{RES}/response/GSE22309_clock_interaction.tsv", sep="\t"); g
 gresp = pd.read_csv(f"{RES}/response/GSE22309_gene_response_by_group.tsv", sep="\t", index_col=0); prog = pd.read_csv(f"{RES}/response/healthy_program_replicated.tsv", sep="\t", index_col=0)
 g30 = pd.read_csv(f"{RES}/response/GSE9105_gene_response_30min.tsv", sep="\t", index_col=0); g240 = pd.read_csv(f"{RES}/response/GSE9105_gene_response_240min.tsv", sep="\t", index_col=0)
 myo = pd.read_csv(f"{RES}/myotubes/GSE182117_clock_HGI_and_amplitude.tsv", sep="\t", index_col=0)
-try: de_sum = pd.read_csv(f"{RES}/de/de_summary.tsv", sep="\t"); de_set = pd.read_csv(f"{RES}/de/de_set_enrichment.tsv", sep="\t")
-except FileNotFoundError: de_sum = de_set = None
+def _opt(path, **kw):
+    try:
+        d = pd.read_csv(path, sep="\t", **kw); return d if len(d) else None
+    except (FileNotFoundError, pd.errors.EmptyDataError): return None
+de_sum = _opt(f"{RES}/de/de_summary.tsv"); de_set = _opt(f"{RES}/de/de_set_enrichment.tsv")
+if de_sum is None or de_set is None: de_sum = de_set = None
 pp, e = geo.read_series_matrix("GSE22309_series_matrix.txt.gz"); pp["grp"] = pp.status.map({"insulin sensitive": "IS", "insulin resistant": "IR", "diabetic": "T2D"}); pp["subj"] = np.arange(len(pp)) // 2
 Z = R.embed(e)
 def pairs(g): return [(pp[(pp.subj == s) & (pp.agent == "untreated")].gsm.iloc[0], pp[(pp.subj == s) & (pp.agent == "insulin")].gsm.iloc[0]) for s in pp[pp.grp == g].subj.unique()]

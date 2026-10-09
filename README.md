@@ -1,6 +1,6 @@
 # t2d_landscape
 
-Code and documents for the paper *Insulin resistance is a loss of coordination, not of signal* — a reanalysis of 23 public human transcriptomic cohorts (islet, skeletal muscle, adipose tissue, blood; GTEx paired tissues; hyperinsulinaemic-clamp biopsies) asking whether the information about insulin sensitivity is in how muscle *is* or in how it *responds*.
+Code and documents for the paper *Insulin resistance fragments a coordinated, clock-coupled transcriptional response in humans* (working title) — a reanalysis of 23 public human transcriptomic cohorts (islet, skeletal muscle, adipose tissue, blood; GTEx paired tissues; hyperinsulinaemic-clamp biopsies) asking whether the information about insulin sensitivity is in how muscle *is* or in how it *responds*.
 
 ## What the paper shows
 
@@ -25,7 +25,7 @@ docs/
   TARGETS.md                gene-level exploration and candidate targets
   ROADMAP.md, THEORY_RESULTS.md, DRAFT_STORY.md
 run_all.sh              discovery pipeline (R networks + python/sheaf_coherence.py + python/landscape.py)
-run_replication.sh      every other analysis in the paper, in order (python/analyses/01–08)
+run_replication.sh      every other analysis in the paper, in order (python/analyses/01–09)
 R_scripts_*/            coexpression networks, metrics, bootstrap, drivers, limma
 python/sheaf_coherence.py, python/landscape.py
 python/lib/             geo.py (GEO readers, platform annotation), response.py (response geometry, LOO coherence, permutation tests)
@@ -57,9 +57,17 @@ python python/figures/make_figures.py        # writes figures/Fig1..Fig6 (.pdf a
 
 `data/raw/`, `data/export/`, `results/` and `figures/` are not versioned.
 
+Every script reads its inputs and writes its outputs through environment variables, so the whole
+pipeline can run against directories elsewhere without editing code:
+`T2D_RAW` (downloaded inputs, default `data/raw`), `T2D_EXPORT` (cohorts prepared by step 01,
+default `data/export`), `T2D_RES` / `T2D_OUT` (results, default `results/...`) and `T2D_FIG`
+(figures, default `figures`).
+
 ## Status
 
-Manuscript in preparation. The central claim (loss of coordination and of the insulin→clock coupling in insulin resistance) rests on GSE22309 (2007, n = 20/20/15, batch-uneven) with replication of its components in GSE9105, GSE157988, GSE182117 and GSE182120; see `docs/AUDIT.md` for what survives, what is weakened and what was withdrawn, and `docs/REPLICATION.md` for every cohort.
+Manuscript in preparation; `docs/MANUSCRIPT_CellMetab.md` is drafted in Cell Press format and is being
+retargeted to Nature Metabolism (Analysis), whose format drops the Highlights and eTOC sections and
+moves Methods out of STAR format. The central claim (loss of coordination and of the insulin→clock coupling in insulin resistance) rests on GSE22309 (2007, n = 20/20/15, batch-uneven) with replication of its components in GSE9105, GSE157988, GSE182117 and GSE182120; see `docs/AUDIT.md` for what survives, what is weakened and what was withdrawn, and `docs/REPLICATION.md` for every cohort.
 
 ## Data and licence
 
