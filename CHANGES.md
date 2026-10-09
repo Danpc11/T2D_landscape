@@ -1,5 +1,11 @@
 # Registro de cambios
 
+## v9.1 — repositorio del artículo
+
+- Raíz reducida a `README.md`, `THEORY.md` (marco conceptual + definiciones formales en un solo documento) y `CHANGES.md`.
+- `docs/`: manuscrito, auditoría, tabla de replicación, exploración génica, hoja de ruta, borradores.
+- README principal reescrito (el anterior había sido sobrescrito por error con `data/README.md`).
+
 ## v9 — reproducibilidad completa
 
 - `python/lib/geo.py` (lectura de series matrix, anotación de plataformas, log-CPM) y `python/lib/response.py` (embedding, desplazamientos, coherencia leave-one-out, tests de permutación, interacción por gen, FDR).

@@ -1,0 +1,6 @@
+data/raw/
+data/export/
+results/
+logs/
+gtex/
+__pycache__/

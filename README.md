@@ -1,42 +1,48 @@
-# Data: what to download and where to put it
+# t2d_landscape
 
-All inputs are public. Place them in `data/raw/` with exactly these names (GEO file names with
-`_txt.gz` renamed to `.txt.gz` where shown). Nothing in `data/raw/` is tracked by git.
+Code and documents for the paper *Insulin resistance is a loss of coordination, not of signal* — a reanalysis of 23 public human transcriptomic cohorts (islet, skeletal muscle, adipose tissue, blood; GTEx paired tissues; hyperinsulinaemic-clamp biopsies) asking whether the information about insulin sensitivity is in how muscle *is* or in how it *responds*.
 
-## Discovery (downloaded automatically by `R_scripts_preprocessing/01_*.R`)
-GSE76895, GSE18732, GSE15653, GSE27951 (GEOquery; needs internet from the R session).
+## What the paper shows
 
-## Replication of the landscape (python/analyses/01_prepare_replication_cohorts.py)
-| File | Source |
-|---|---|
-| GSE164416_series_matrix.txt.gz, GSE164416_DP_htseq_counts.txt.gz | GEO GSE164416 |
-| GSE50244_series_matrix.txt.gz, GSE50244_Genes_counts_TMM_NormLength_atLeastMAF5_expressed.txt.gz | GEO GSE50244 |
-| GSE50398-GPL6244_series_matrix.txt.gz | GEO GSE50398 |
-| GSE25462_series_matrix.txt.gz | GEO GSE25462 |
-| GSE64567_series_matrix.txt.gz | GEO GSE64567 |
-| GSE59034_series_matrix.txt.gz | GEO GSE59034 |
-| GSE135134_series_matrix.txt.gz, GSE135134_METSIM_subcutaneousAdipose_RNAseq_TPMs_n434.txt | GEO GSE135134 (supplementary file) |
+1. The resting muscle transcriptome of 49 clamped individuals carries no gene-level information about insulin sensitivity (0 genes at FDR < 0.1 vs clamp M-value).
+2. Healthy muscle responds to insulin along one direction shared by individuals, assembled over ~4 h, which includes a reset of the peripheral clock output (DBP, PER2, NR1D2).
+3. Insulin-resistant and diabetic muscle respond with the same magnitude but without a shared direction, and the clock output no longer responds.
+4. Adipose tissue fails by magnitude, not direction; bariatric surgery restores magnitude, not coordination.
+5. The organs of one person share one transcriptional state (cellular-sheaf coherence) that drifts continuously with disease, without a second basin.
 
-## GTEx paired tissues (python/analyses/03*)
-gene_reads_adult_gtex_v11_{muscle_skeletal,adipose_subcutaneous,pancreas,whole_blood,liver}.gct.gz (GTEx portal, open),
-GTEx_Analysis_v11_Annotations_SampleAttributesDS.txt, GTEx_Analysis_v11_Annotations_SubjectPhenotypesDS.txt (open).
-The liver gct is also used as the Ensembl→symbol map.
+## Repository
 
-## Insulin response (python/analyses/04_insulin_response.py)
-| File | Source |
-|---|---|
-| GSE22309_series_matrix.txt.gz, GPL91.annot.gz | GEO GSE22309; platform GPL91 "Download full table" |
-| GSE9105_series_matrix.txt.gz, GPL96.annot.gz | GEO GSE9105; platform GPL96 |
-| GSE7146-GPL96_series_matrix.txt.gz | GEO GSE7146 |
-| GSE231509_Read_counts.txt.gz | GEO GSE231509 |
-| GSE157988_series_matrix.txt.gz, GSE157988_NMN_all_gene_counts.xlsx | GEO GSE157988 |
-| GSE26637_series_matrix.txt.gz | GEO GSE26637 |
-| ExpressionTable.txt, Cohort.txt | Rydén et al. 2016 Cell Reports export (export.uppmax.uu.se/b2013047/CellReportsTables/; mirror in this repo's release assets if the server is down) |
+```
+README.md               this file
+THEORY.md               framework and formal definitions behind the measures (sheaf coherence, landscape, response geometry)
+CHANGES.md              changelog
+docs/                   manuscript draft, audit of every claim, replication table, gene-level exploration, roadmap
+run_all.sh              discovery pipeline (R networks + python/sheaf_coherence.py + python/landscape.py)
+run_replication.sh      every other analysis in the paper, in order (python/analyses/01–08)
+R_scripts_*/            coexpression networks, metrics, bootstrap, drivers, limma
+python/sheaf_coherence.py, python/landscape.py
+python/lib/             geo.py (GEO readers, platform annotation), response.py (response geometry, LOO coherence, permutation tests)
+python/analyses/        01 cohorts · 02 landscape replication · 03 GTEx · 04 insulin response · 05 resting muscle vs M · 06 myotubes · 07 supplementary · 08 audit
+python/simulation/      synthetic validations and power
+data/README.md          every input file and where to download it
+```
 
-## Resting muscle vs insulin sensitivity (05) and myotubes (06)
-GSE182120_series_matrix.txt.gz, GPL17586-45144.txt (HTA 2.0 annotation, GEO platform page); GSE182117_counts.tsv.gz.
+## Reproduce
 
-## Supplementary (07)
-GSE66306_PM_processed_counts.txt.gz, GSE156993_series_matrix.txt.gz, GSE21321-GPL6883_series_matrix.txt.gz, GSE129843_RESTRICT.txt.gz.
+```bash
+# 1. put the public inputs in data/raw/ as listed in data/README.md
+# 2. discovery (needs R with WGCNA, limma, GEOquery; ~hours)
+bash run_all.sh --workers=32
+# 3. everything else (python 3.10+, numpy, scipy, pandas, openpyxl; ~30 min)
+bash run_replication.sh
+```
 
-Set `T2D_RAW` to point elsewhere if needed (default `data/raw`).
+Outputs land in `results/` (`response/`, `resting/`, `myotubes/`, `gtex/`, `replication/`, `supplementary/`, `audit/`). Figures and manuscript numbers are generated from these TSVs only.
+
+## Status
+
+Manuscript in preparation. The central claim (loss of coordination and of the insulin→clock coupling in insulin resistance) rests on GSE22309 (2007, n = 20/20/15, batch-uneven) with replication of its components in GSE9105, GSE157988, GSE182117 and GSE182120; see `docs/AUDIT.md` for what survives, what is weakened and what was withdrawn, and `docs/REPLICATION.md` for every cohort.
+
+## Data and licence
+
+All inputs are public (GEO, GTEx portal, Rydén et al. 2016 export). Code: MIT. Documents: CC BY 4.0.
