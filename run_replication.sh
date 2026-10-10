@@ -15,5 +15,7 @@ step "07 supplementary"                 python python/analyses/07_remission_and_
 step "08 audit: Fisher null"            python python/analyses/08_audit_fisher_null.py
 step "09 classical DE + enrichment"     python python/analyses/09_classical_de.py
 step "10 network panel inputs"          python python/analyses/10_network_panel.py
+step "11 exercise specificity"          python python/analyses/11_exercise_specificity.py
+step "12 power and confounding"         python python/analyses/12_power_and_confounding.py
 step "figures"                          python python/figures/make_figures.py
 echo "done: results/{response,resting,myotubes,gtex,replication,supplementary,audit,de} and figures/"

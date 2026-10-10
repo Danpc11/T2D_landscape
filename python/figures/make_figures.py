@@ -74,6 +74,9 @@ def _opt(path, **kw):
     except (FileNotFoundError, pd.errors.EmptyDataError): return None
 de_sum = _opt(f"{RES}/de/de_summary.tsv"); de_set = _opt(f"{RES}/de/de_set_enrichment.tsv")
 net_metrics = _opt(f"{RES}/networks/all_metrics_combined.tsv")
+exo = _opt(f"{RES}/response/exercise_response_geometry.tsv")
+pwr = _opt(f"{RES}/power/power_and_confounding.tsv")
+if pwr is None: pwr = _opt(f"{RES}/response/power_and_confounding.tsv")
 try:
     import pickle; net = pickle.load(open(f"{RES}/networks/GSE25462_ND_network.pkl", "rb"))
 except (FileNotFoundError, OSError): net = None
@@ -172,7 +175,7 @@ tcol = {"islet": "#6b46c1", "muscle": C["IS"], "adipose": C["IR"]}
 ax = fig.add_subplot(gs[0, 0:2]); L.append((ax, "a")); ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(0, 10)
 ax.text(0, 9.5, "organ", fontsize=8.5, fontweight="bold", va="top"); ax.text(2.6, 9.5, "cohorts at rest", fontsize=8.5, fontweight="bold", va="top"); ax.text(6.0, 10.2, "cohorts with paired biopsies,\nbefore and during insulin", fontsize=8.5, fontweight="bold", va="top")
 ax.plot([0, 10], [8.2, 8.2], color="k", lw=0.9)
-for i_, (t, n, d) in enumerate([("islet", "4  (18–89 per stage)", "none"), ("muscle", "2  (10–47)", "3 clamp cohorts  (55–82)"), ("adipose", "2  (10–224)", "2 clamp cohorts  (10–69)")]):
+for i_, (t, n, d) in enumerate([("islet", "5  (11–58 per group)", "ex vivo only (ED Fig. 2)"), ("muscle", "2  (10–47)", "3 clamp cohorts  (55–82)"), ("adipose", "2  (10–224)", "2 clamp cohorts  (10–69)")]):
     y = 6.7 - 2.4 * i_
     if t == "muscle": ax.add_patch(plt.Rectangle((-0.2, y - 0.9), 10.4, 2.0, fc="#eef3fb", ec="none", zorder=0))
     ax.text(0, y, t, fontsize=9.5, color=tcol[t], fontweight="bold", va="center"); ax.text(2.6, y, n, fontsize=8.5, va="center"); ax.text(6.0, y, d, fontsize=8.5, va="center")
@@ -204,7 +207,7 @@ ax.scatter([], [], color="k", marker="s", s=70, label="magnitude ratio (resistan
 ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.28), ncol=2); ax.set_xlabel("relative to the sensitive group")
 ax.set_title("During insulin there is signal, and it differs by organ: adipose loses magnitude and keeps\ndirection; muscle keeps magnitude and loses direction")
 ax = fig.add_subplot(gs[2, 2]); L.append((ax, "f")); ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-for i_, (org, rest, resp, fails) in enumerate([("islet", "none", "no paired data", "—"), ("adipose", "none", "magnitude ↓", "amplitude"), ("muscle", "none", "coherence ↓, clock uncoupled", "coordination")]):
+for i_, (org, rest, resp, fails) in enumerate([("islet", "11 genes (n = 85)", "ex vivo, coherence 0.4–0.9", "not comparable"), ("adipose", "none", "magnitude ↓", "amplitude"), ("muscle", "none", "coherence ↓, clock uncoupled", "coordination")]):
     y = 0.88 - 0.33 * i_
     if org == "muscle": ax.add_patch(plt.Rectangle((0, y - 0.26), 1, 0.35, fc="#eef3fb", ec="none", zorder=0))
     ax.text(0.02, y, org, fontsize=9.5, color=tcol[org], fontweight="bold", va="center")
@@ -215,12 +218,12 @@ ax.set_title("Muscle is where the response\nfragments and where paired data\nexi
 if de_sum is not None:
     ax = fig.add_subplot(gs[3, 0]); L.append((ax, "g")); lab2 = [f"{r.tissue}\n{r.acc}" for r in de_sum.itertuples()]
     ax.scatter(range(len(de_sum)), de_sum.n_fdr10, s=80, color=[tcol[t] for t in de_sum.tissue], zorder=3); ax.vlines(range(len(de_sum)), 1, de_sum.n_fdr10.clip(lower=1), color=[tcol[t] for t in de_sum.tissue], lw=2)
-    ax.set_yscale("symlog", linthresh=1); ax.set_ylim(0, 6e4); ax.set_xticks(range(len(de_sum))); ax.set_xticklabels(lab2, fontsize=8); ax.set_ylabel("genes at FDR < 0.1"); ax.set_xlim(-0.65, len(de_sum) - 0.35)
+    ax.set_yscale("symlog", linthresh=1); ax.set_ylim(0, 6e4); ax.set_xticks(range(len(de_sum))); ax.set_xticklabels(lab2, fontsize=7, rotation=30, ha="right"); ax.set_ylabel("genes at FDR < 0.1"); ax.set_xlim(-0.65, len(de_sum) - 0.35)
     for i_, r in enumerate(de_sum.itertuples()): ax.text(i_, max(r.n_fdr10, 1) * 2.0, f"{r.n_fdr10:,}", ha="center", fontsize=7.5)
     ax.set_title("Classical differential expression at rest")
     ax = fig.add_subplot(gs[3, 1:]); L.append((ax, "h"))
     piv = de_set.pivot_table(index="set", columns="acc", values="z"); pp_ = de_set.pivot_table(index="set", columns="acc", values="p")
-    order = [c for c in ["GSE164416", "GSE50244", "GSE25462", "METSIM"] if c in piv.columns]; piv = piv[order]; pp_ = pp_[order]
+    order = [c for c in ["GSE164416", "GSE50244", "GSE159984", "GSE25462", "METSIM"] if c in piv.columns]; piv = piv[order]; pp_ = pp_[order]
     im = ax.imshow(piv.values, cmap="RdBu_r", vmin=-4, vmax=4, aspect="auto")
     ax.set_xticks(range(len(order))); ax.set_xticklabels([f"{de_sum.set_index('acc').tissue[c]}\n{c}" for c in order], fontsize=7.5); ax.tick_params(axis="x", pad=2); ax.set_yticks(range(len(piv))); ax.set_yticklabels(piv.index, fontsize=7.5)
     for i_ in range(piv.shape[0]):
@@ -229,6 +232,23 @@ if de_sum is not None:
     cb = plt.colorbar(im, ax=ax, fraction=0.03, pad=0.02); cb.set_label("z of mean |t| vs random sets")
     ax.set_title("Set enrichment of the same contrasts")
 save(fig, "Fig2_tissue_search", L)
+
+
+# ================= ED Fig 2: la respuesta del islote ex vivo =================
+isl = _opt(f"{RES}/de/islet_response_geometry.tsv")
+if isl is not None:
+    fig = plt.figure(figsize=(W * 0.62, 3.2)); gs = fig.add_gridspec(1, 2, left=0.14, right=0.97, top=0.9, bottom=0.26, wspace=0.55); L = []
+    ax = fig.add_subplot(gs[0, 0]); L.append((ax, "a")); colr = {"palmitate": C["IR"], "high glucose": "#6b46c1", "palmitate + glucose": C["T2D"]}
+    for i_, r in enumerate(isl.itertuples()):
+        ax.scatter(r.coherence_loo, i_, color=colr.get(r.stimulus, C["grey"]), s=70, zorder=3); ax.hlines(i_, 0, r.coherence_loo, color=colr.get(r.stimulus, C["grey"]), lw=2)
+        ax.text(r.coherence_loo + 0.03, i_, f"n = {int(r.n)}", va="center", fontsize=8)
+    ax.set_yticks(range(len(isl))); ax.set_yticklabels([f"{r.stimulus}\n{r.phase}" for r in isl.itertuples()], fontsize=7.5); ax.set_xlim(0, 1.15); ax.set_xlabel("coherence (LOO)"); ax.invert_yaxis()
+    ax.axvline(0, color="k", lw=0.8); ax.set_title("Islet, ex vivo perturbation")
+    ax = fig.add_subplot(gs[0, 1]); L.append((ax, "b"))
+    for i_, r in enumerate(isl.itertuples()): ax.scatter(r.magnitude, r.coherence_loo, color=colr.get(r.stimulus, C["grey"]), s=70, zorder=3)
+    for k_, (lab_, col) in enumerate(colr.items()): ax.scatter([], [], color=col, s=70, label=lab_)
+    ax.set_xlabel("|displacement| (group mean)"); ax.set_ylabel("coherence (LOO)"); ax.set_ylim(0, 1.05); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=1)
+    save(fig, "ED_Fig2_islet_response", L)
 
 # ================= Fig 3: el basal es ciego =================
 fig = plt.figure(figsize=(W, 6.2)); gs = fig.add_gridspec(2, 3, height_ratios=[1, 1.05], width_ratios=[1.15, 1, 1], left=0.105, right=0.97, top=0.94, bottom=0.08, hspace=0.6, wspace=0.62); L = []
@@ -284,7 +304,7 @@ cb = plt.colorbar(im, ax=ax, fraction=0.045, pad=0.04); cb.set_label("mean paire
 save(fig, "Fig4_healthy_coordinated", L)
 
 # ================= Fig 5: IR fragmenta (estilo: 3 paneles por fila, grandes) =================
-fig = plt.figure(figsize=(W, 10.2)); gs = fig.add_gridspec(4, 3, height_ratios=[1, 1.05, 1.05, 1], left=0.08, right=0.98, top=0.98, bottom=0.04, hspace=0.5, wspace=0.5); L = []
+fig = plt.figure(figsize=(W, 12.2)); gs = fig.add_gridspec(5, 3, height_ratios=[1, 1.05, 1.05, 1, 1], left=0.08, right=0.98, top=0.98, bottom=0.035, hspace=0.62, wspace=0.5); L = []
 # a magnitud
 ax = fig.add_subplot(gs[0, 0]); L.append((ax, "a")); dots(ax, {k: np.linalg.norm(D[k], axis=1) for k in D}, C, "|displacement| per person", log=True); ax.set_title("Insulin-resistant muscle responds\nas strongly as healthy muscle")
 # b coherencia con nulo
@@ -329,14 +349,51 @@ ax.set_yticks(y); ax.set_yticklabels(mg); ax.axvline(0, color="k", lw=0.8); ax.s
 ax = fig.add_subplot(gs[3, 1]); L.append((ax, "h")); ag = [x for x in ["DBP", "TEF", "HLF", "PER2", "PER3", "NR1D2"] if x in myo.index]; y = np.arange(len(ag))
 ax.errorbar(myo.loc[ag, "amp_NGT"], y - 0.17, xerr=myo.loc[ag, "amp_NGT_sd"], fmt="o", color=C["IS"], ms=6, capsize=3, elinewidth=1.2, label="NGT"); ax.errorbar(myo.loc[ag, "amp_T2D"], y + 0.17, xerr=myo.loc[ag, "amp_T2D_sd"], fmt="^", color=C["T2D"], ms=6, capsize=3, elinewidth=1.2, label="T2D")
 ax.set_yticks(y); ax.set_yticklabels(ag); ax.set_xlabel("24-h amplitude (cosinor), mean ± s.d."); ax.set_xlim(0, None); ax.set_title("Clock-output amplitude is\n~30% lower in T2D myotubes"); ax.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, -0.42), ncol=2)
-sub = gs[3, 2].subgridspec(1, 2, wspace=0.6)
+sub = gs[4, 0:2].subgridspec(1, 2, wspace=0.55)
 def fate(sfx):
     same = np.sign(prog["mean"]) == np.sign(prog[f"mean_{sfx}"]); strong = prog[f"t_{sfx}"].abs() > 2; return {"kept": (same & strong).mean(), "lost": (~strong).mean(), "inverted": (~same & strong).mean()}
 for k, sfx in enumerate(["IR", "T2D"]):
     axa = fig.add_subplot(sub[k]); R.alluvial(axa, fate(sfx), "healthy\nprogramme", ["kept", "lost", "inverted"], {"kept": C["IS"], "lost": C["null"], "inverted": C["T2D"]}); axa.text(0.4, 1.06, sfx, transform=axa.transAxes, ha="center", color=C[sfx], fontsize=9.5, fontweight="bold")
     if k == 0: L.append((axa, "i"))
 
+if exo is not None:
+    axj = fig.add_subplot(gs[4, 2]); L.append((axj, "j"))
+    ins = [("insulin, 4 h", g("GSE22309_muscle_4h", "IS", "coherence_loo"), g("GSE22309_muscle_4h", "T2D", "coherence_loo"))]
+    ex = exo[(exo.tissue == "muscle") & (exo.timepoint == "recovery")]
+    ins.append(("exercise, 3 h\n(recovery)", float(ex[ex.group == "NGT"].coherence.iloc[0]), float(ex[ex.group == "T2D"].coherence.iloc[0])))
+    for i_, (lab_, h, d_) in enumerate(ins):
+        axj.plot([i_ - 0.17, i_ + 0.17], [h, d_], color="k", lw=1, zorder=2)
+        axj.scatter(i_ - 0.17, h, color=C["IS"], s=80, zorder=3); axj.scatter(i_ + 0.17, d_, color=C["T2D"], s=80, zorder=3)
+    axj.set_xticks(range(len(ins))); axj.set_xticklabels([x[0] for x in ins]); axj.set_ylim(0, 1); axj.set_xlim(-0.5, len(ins) - 0.5); axj.set_ylabel("coherence (LOO)")
+    axj.scatter([], [], color=C["IS"], s=60, label="healthy / NGT"); axj.scatter([], [], color=C["T2D"], s=60, label="T2D")
+    axj.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, -0.42), ncol=2)
 save(fig, "Fig5_IR_fragments", L)
+
+
+# ================= ED Fig 3: sesgo, confusion por lote y potencia =================
+if pwr is not None:
+    fig = plt.figure(figsize=(W * 0.95, 3.4)); gs = fig.add_gridspec(1, 3, left=0.08, right=0.98, top=0.9, bottom=0.26, wspace=0.5); L = []
+    n0 = pwr[pwr.analysis == "null coherence vs n"]
+    ax = fig.add_subplot(gs[0, 0]); L.append((ax, "a"))
+    ax.plot(n0.n, n0.naive_mean, "o-", color=C["T2D"], ms=4, label="naive, mean"); ax.plot(n0.n, n0.naive_p95, "--", color=C["T2D"], lw=1, label="naive, 95th pct")
+    ax.plot(n0.n, n0.loo_mean, "o-", color=C["IS"], ms=4, label="leave-one-out, mean"); ax.plot(n0.n, n0.loo_p95, "--", color=C["IS"], lw=1, label="LOO, 95th pct")
+    ax.axhline(0, color="k", lw=0.8); ax.set_xlabel("individuals per group"); ax.set_ylabel("coherence when no direction is shared"); ax.legend(frameon=False, fontsize=7, loc="upper right")
+    ps = pwr[pwr.analysis == "pseudo-group by batch"]; br = pwr[pwr.analysis == "batch restriction"]
+    ax = fig.add_subplot(gs[0, 1]); L.append((ax, "b"))
+    for i_, r in enumerate(ps.itertuples()): ax.scatter(i_, r.coherence, color=C["grey"], s=70, zorder=3); ax.text(i_, r.coherence + 0.05, f"n={int(r.n)}", ha="center", fontsize=7)
+    k0 = len(ps)
+    for j_, r in enumerate(br.itertuples()):
+        ax.scatter(k0 + j_ - 0.15, r.coherence, facecolors="none", edgecolors=C[r.group], s=70, lw=1.6, zorder=3)
+        ax.scatter(k0 + j_ + 0.15, r.coherence_same, color=C[r.group], s=70, zorder=3); ax.plot([k0 + j_ - 0.15, k0 + j_ + 0.15], [r.coherence, r.coherence_same], color=C[r.group], lw=1)
+    ax.set_xticks(range(k0 + len(br))); ax.set_xticklabels(list(ps.group) + list(br.group), fontsize=7, rotation=30, ha="right")
+    ax.set_ylim(0, 1.15); ax.set_ylabel("coherence (LOO)"); ax.axvline(k0 - 0.5, color="k", lw=0.6, ls=":")
+    ax.text(0.02, 0.10, "groups defined by\nbatch alone", transform=ax.transAxes, fontsize=7, color=C["grey"], va="bottom"); ax.text(0.62, 0.10, "clinical groups\nopen: all pairs\nfilled: same batch", transform=ax.transAxes, fontsize=7, va="bottom")
+    po = pwr[pwr.analysis == "power"]
+    ax = fig.add_subplot(gs[0, 2]); L.append((ax, "c"))
+    for d_, grp in po.groupby("delta_fraction_randomised"):
+        ax.plot(grp.n, grp.power, "o-", ms=4, label=f"{int(d_*100)}% randomised")
+    ax.axhline(0.8, color="k", lw=0.8, ls="--"); ax.set_xlabel("individuals per group"); ax.set_ylabel("power to detect the loss"); ax.set_ylim(0, 1); ax.legend(frameon=False, fontsize=7, loc="upper left")
+    save(fig, "ED_Fig3_power_and_confounding", L)
 
 # ================= Fig 6: adiposo e intervenciones =================
 fig = plt.figure(figsize=(W, 6.0)); gs = fig.add_gridspec(2, 3, left=0.09, right=0.97, top=0.96, bottom=0.08, hspace=0.55, wspace=0.6); L = []

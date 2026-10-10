@@ -1,5 +1,18 @@
 # Registro de cambios
 
+## v9.16 — manuscrito completo
+
+- `docs/MANUSCRIPT_FULL.md`: manuscrito en formato Nature (resumen, introducción, resultados, discusión y limitaciones, métodos escritos por propósito, referencias, leyendas y material suplementario), compilado a PDF con las figuras al final.
+- Material suplementario: nota sobre por qué el haz y qué añade frente a comparaciones más simples; nota sobre el órgano ausente con la propuesta de GSE159984 y GSE53949 para islote; cinco tablas suplementarias generadas desde los resultados.
+
+## v9.15 — título
+
+- Título definitivo: *Insulin resistance disrupts transcriptional coordination in skeletal muscle*. Aplicado en `docs/MANUSCRIPT.md` y `README.md`; se retira el provisional.
+
+## v9.14 — manuscrito
+
+- `docs/MANUSCRIPT.md`: borrador completo en formato Analysis de *Nature Metabolism* (resumen, introducción, seis secciones de resultados ancladas a las figuras, discusión, limitaciones, métodos resumidos, disponibilidad de datos y código), con el tono calibrado de las leyendas revisadas. El borrador anterior en formato Cell Press queda como `docs/DRAFT_CellMetab_format.md`.
+
 ## v9.13 — lienzo mas ancho
 
 - Ancho de figura configurable con `T2D_FIG_WIDTH_MM` (250 mm por defecto para la redacción; 180 mm es el doble columna de Nature y basta poner `T2D_FIG_WIDTH_MM=180` para la versión de envío). Los tipos de letra son absolutos, así que ensanchar el lienzo da aire a los paneles sin reducir la legibilidad.

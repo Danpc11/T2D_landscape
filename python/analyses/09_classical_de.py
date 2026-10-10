@@ -17,7 +17,7 @@ SETS = {"immediate-early TFs": ["FOS", "FOSB", "JUN", "JUNB", "EGR1", "EGR2", "E
         "ECM": ["COL1A1", "COL1A2", "COL3A1", "COL4A1", "COL6A1", "COL6A2", "LTBP4", "FN1", "SPARC", "LAMA2"],
         "lipid / adipogenesis": ["PPARG", "ADIPOQ", "LEP", "FASN", "SCD", "CD36", "LPL", "PLIN1", "PLIN2", "CIDEC"]}
 rows, setrows = [], []
-for acc, tis in [("GSE164416", "islet"), ("GSE50244", "islet"), ("GSE25462", "muscle"), ("METSIM", "adipose")]:
+for acc, tis in [("GSE164416", "islet"), ("GSE50244", "islet"), ("GSE159984", "islet"), ("GSE25462", "muscle"), ("METSIM", "adipose")]:
     d = f"{E}/{acc}"
     if not os.path.exists(f"{d}/{acc}_expr.tsv"): print("skip", acc); continue
     e = pd.read_csv(f"{d}/{acc}_expr.tsv", sep="\t", index_col=0); p = pd.read_csv(f"{d}/{acc}_pheno.tsv", sep="\t", dtype={".sample_id": str})
