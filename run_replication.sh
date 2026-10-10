@@ -25,6 +25,7 @@ step "13 cohort inventory"              python python/analyses/13_cohort_invento
 step "16 alignment (primary)"           python python/analyses/16_alignment_primary.py
 step "17 von Mises-Fisher model"        python python/analyses/17_vmf_model.py
 step "18 hierarchical vMF (pooled)"     python python/analyses/18_hierarchical_vmf.py
+step "19a cell-type signature"          python python/analyses/19a_build_celltype_signature.py
 step "19 tissue vs cell"                python python/analyses/19_tissue_vs_cell.py
 step "figures"                          python python/figures/make_figures.py
 echo "done: results/{response,resting,myotubes,gtex,replication,supplementary,audit,de} and figures/"

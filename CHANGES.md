@@ -4,6 +4,10 @@
 
 - `docs/EXPLORATION_BIOLOGY.md`: búsqueda sistemática de biología nueva y dianas. Genoma completo, la interacción gen × insulina da 2 genes a FDR < 0.05 (IS vs IR) y 1 (IS vs T2D), con exceso claro de P pequeños (95 frente a 8 esperados): señal distribuida, ninguna diana nominable. Se documentan y descartan tres hipótesis: el eje de empalme CLK1/SRSF (set P = 0.39 y 0.077), la correlación con el alineamiento individual (circular por construcción) y los cuatro genes que "ganan" respuesta (filtro de umbrales, no prueba). Se deja constancia de que el resultado de los genes del reloj es una hipótesis preespecificada, no un hallazgo de cribado.
 
+## v1.2 — deconvolucion reproducible
+
+`19a_build_celltype_signature.py` construye la firma de tipos celulares desde GSE130646 (Rubenstein et al. 2020, Sci Rep 10:229) y desconvoluciona las biopsias basales, de modo que el panel 7a ya no depende de un analisis hecho fuera del repositorio. Las cifras se reproducen exactamente: 0.463 sin ajustar, 0.399 ajustando por tipo de fibra, 0.082 por composicion mononuclear y 0.443 con covariables aleatorias. Se fijan scanpy, igraph y leidenalg en `requirements.txt`, necesarios solo para este paso, y se documenta en `data/README.md` que el scRNA-seq de musculo no captura mionucleos.
+
 ## v1.1 — the phenomenon is localised to the tissue
 
 `19_tissue_vs_cell.py` responde donde reside la coordinacion, y reorganiza el argumento del articulo.

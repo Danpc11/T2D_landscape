@@ -72,5 +72,12 @@ insulin-stimulated biopsies exist to request.
 | `GSE63887_raw_counts_GRCh38_p13_NCBI.tsv.gz` + both series matrices | 19 | the baseline (0 h) samples of the same study, deposited separately; needed to complete the 24 donors |
 | `GSE130646_RAW.tar` (four per-sample count matrices) | 19 | single-cell reference of human vastus lateralis mononuclear cells, used to build the deconvolution signature |
 
-The fibre-type markers are taken from Table 1 of the accompanying publication of GSE130646 and are
-hard-coded in `19_tissue_vs_cell.py`; no extra download is needed for them.
+Step 19a extracts `GSE130646_RAW.tar` into `data/work/`, clusters and annotates the cells, writes the
+cell-type signature and deconvolves the basal biopsies; step 19 then consumes its output. Note that
+single-cell dissociation of muscle does not capture myonuclei, so these proportions describe the
+mononuclear compartment relative to itself.
+
+The fibre-type markers are the twenty per type of Table 1 of Rubenstein et al. 2020, derived from
+RNA-seq of pooled single fibres (deposited separately as GSE130977) and validated against myosin
+heavy-chain determination by SDS-PAGE. We use the published list, not that dataset, so no extra
+download is needed; the markers are hard-coded in `19_tissue_vs_cell.py`.

@@ -30,6 +30,7 @@ docs/
 run_all.sh              discovery pipeline (R networks + python/sheaf_coherence.py + python/landscape.py)
 run_replication.sh      every other analysis in the paper, in order (python/analyses/01–18)
 requirements.txt        pinned Python versions used to produce the published numbers
+                        (scanpy, igraph and leidenalg are needed only by step 19a)
 renv_packages.txt       R packages used by run_all.sh
 tests/smoke_test.py     checks the core statistics behave as claimed; needs no data
 R_scripts_*/            coexpression networks, metrics, bootstrap, drivers, limma
@@ -43,7 +44,8 @@ python/analyses/        01 cohorts · 02 landscape replication · 03a-c GTEx · 
                         11 exercise specificity · 12 confounding and power · 13 cohort inventory ·
                         14 sheaf across organ sets (specificity control) · 15 discovery sheaf by stage ·
                         16 per-person alignment (primary analysis) · 17 von Mises-Fisher model ·
-                        18 hierarchical vMF across cohorts · 19 tissue versus cell (composition and myotubes)
+                        18 hierarchical vMF across cohorts · 19a cell-type signature from scRNA-seq ·
+                        19 tissue versus cell (composition and myotubes)
 python/simulation/      synthetic validations and power
 data/README.md          every input file and where to download it
 ```

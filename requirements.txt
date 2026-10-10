@@ -1,4 +1,5 @@
 # Python 3.10+. Versiones con las que se produjeron los resultados del artículo.
+# scanpy, igraph y leidenalg solo hacen falta para el paso 19a (firma unicelular)
 numpy==2.4.4
 scipy==1.17.1
 pandas==3.0.2
@@ -7,3 +8,7 @@ matplotlib==3.10.8
 openpyxl==3.1.5
 rdata==1.1.0
 pyarrow==26.0.0
+scanpy==1.12.4
+anndata==0.13.4
+igraph==1.0.0
+leidenalg==0.12.0
