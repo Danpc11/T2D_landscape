@@ -13,3 +13,6 @@ __pycache__/
 .ipynb_checkpoints/
 # sistema
 .DS_Store
+# salidas de pruebas y notebooks
+tests/__pycache__/
+.pytest_cache/

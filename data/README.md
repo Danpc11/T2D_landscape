@@ -40,3 +40,26 @@ GSE182120_series_matrix.txt.gz, GPL17586-45144.txt (HTA 2.0 annotation, GEO plat
 GSE66306_PM_processed_counts.txt.gz, GSE156993_series_matrix.txt.gz, GSE21321-GPL6883_series_matrix.txt.gz, GSE129843_RESTRICT.txt.gz.
 
 Set `T2D_RAW` to point elsewhere if needed (default `data/raw`).
+
+## Inputs added for the response, specificity and model analyses
+
+All from GEO unless stated. For RNA-seq series, use the NCBI-generated count matrix
+(`GSE*_raw_counts_GRCh38_p13_NCBI.tsv.gz`) together with the shared annotation file, because several
+series deposit no expression table in the series matrix.
+
+| File | Used by | Analysis |
+|---|---|---|
+| `Human_GRCh38_p13_annot.tsv.gz` | NCBI, shared by all count matrices | gene symbol mapping |
+| `GSE202295_raw_counts_GRCh38_p13_NCBI.tsv.gz` + series matrix | 11, 16, 18 | acute exercise in muscle, NGT vs T2D (specificity) |
+| `GSE198922_raw_counts_GRCh38_p13_NCBI.tsv.gz` + series matrix | 11, 18 | the same protocol sampled in adipose tissue |
+| `GSE224310_series_matrix.txt.gz` | Supplementary Note 3 | acute exercise versus weeks of training in the same participants |
+| `GSE159984_raw_counts_GRCh38_p13_NCBI.tsv.gz` + both series matrices (GPL9115, GPL16791) | 09, ED Fig. 2 | islet donors at rest, and ex vivo perturbation with paired controls |
+| `GSE106800_series_matrix.txt.gz` | Supplementary Note 3 | circadian misalignment, within person |
+| `GSE67297_series_matrix.txt.gz` | Supplementary Note 3 | ten days of cold acclimation in T2D |
+| `GSE182117_raw_counts_GRCh38_p13_NCBI.tsv.gz` + series matrix | 06 | myotube time series; preferred over the authors' counts for consistency |
+| `gene_reads_adult_gtex_v11_{adipose_visceral_omentum,adrenal_gland,kidney_cortex,kidney_medulla,stomach,small_intestine_terminal_ileum}.gct.gz` | 03a, 14 | the non-metabolic tissues used as the specificity control for the shared individual position |
+
+Note on a dataset that looks usable and is not: GSE182121 is the superseries of GSE182120 and
+GSE182117. Its microarray samples are numbered oddly (001, 003, 007 …) and all are labelled Basal.
+The clamp in that study was used to phenotype participants, not as a paired perturbation, so no
+insulin-stimulated biopsies exist to request.

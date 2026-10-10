@@ -116,3 +116,28 @@ def isotropic_null(D, rng):
     n, d = D.shape; L = np.linalg.norm(D, axis=1, keepdims=True)
     V = rng.normal(size=(n, d)); V /= (np.linalg.norm(V, axis=1, keepdims=True) + 1e-12)
     return V * L
+
+def alignment_per_person(D, is_reference):
+    """Alineamiento de cada individuo con la direccion de respuesta del grupo de referencia.
+
+    A diferencia de la coherencia, que colapsa n personas en un solo numero por grupo, esto
+    devuelve un valor por persona, de modo que la comparacion entre grupos usa n puntos y no 2.
+    La direccion de referencia se calcula siempre sin la persona evaluada (leave-one-out), lo que
+    penaliza al propio grupo de referencia y hace la prueba conservadora.
+    """
+    D = np.asarray(D); ref_mask = np.asarray(is_reference, dtype=bool); out = np.empty(len(D))
+    for i in range(len(D)):
+        k = ref_mask & (np.arange(len(D)) != i)
+        if k.sum() < 2: out[i] = np.nan; continue
+        r = D[k].mean(0); out[i] = float(np.dot(D[i], r) / (np.linalg.norm(D[i]) * np.linalg.norm(r) + 1e-12))
+    return out
+
+def perm_test_alignment(D, labels, rng, B=3000):
+    """Permutacion del alineamiento medio entre grupos. En cada permutacion se RE-ESTIMA la
+    direccion de referencia, porque esa direccion la define el grupo de referencia y, si no se
+    reestimara, el nulo seria optimista. labels: 0 = referencia, 1 = grupo comparado."""
+    labels = np.asarray(labels)
+    def stat(lb):
+        a = alignment_per_person(D, lb == 0); return np.nanmean(a[lb == 0]) - np.nanmean(a[lb == 1])
+    obs = stat(labels); null = np.array([stat(rng.permutation(labels)) for _ in range(B)])
+    return obs, (np.sum(np.abs(null) >= abs(obs)) + 1) / (B + 1), float(null.mean())

@@ -5,7 +5,13 @@ import os; U=os.environ.get("T2D_RAW","data/raw"); OUT=os.environ.get("T2D_OUT",
 s=pd.read_csv(f"{U}/GTEx_Analysis_v11_Annotations_SampleAttributesDS.txt",sep="\t",low_memory=False)
 s["donor"]=s.SAMPID.str.split("-").str[:2].str.join("-")
 ph=pd.read_csv(f"{U}/GTEx_Analysis_v11_Annotations_SubjectPhenotypesDS.txt",sep="\t").set_index("SUBJID")
-tissues={"muscle":"muscle_skeletal","adipose":"adipose_subcutaneous","pancreas":"pancreas","blood":"whole_blood","liver":"liver"}
+# once tejidos: cinco metabolicos, sangre, y cinco no metabolicos que sirven de control de
+# especificidad (la arquitectura compartida, es propia de los organos del metabolismo o de
+# cualquier par de tejidos de la misma persona?)
+tissues={"muscle":"muscle_skeletal","adipose":"adipose_subcutaneous","adipose_visceral":"adipose_visceral_omentum",
+         "pancreas":"pancreas","liver":"liver","blood":"whole_blood",
+         "adrenal":"adrenal_gland","kidney_cortex":"kidney_cortex","kidney_medulla":"kidney_medulla",
+         "stomach":"stomach","ileum":"small_intestine_terminal_ileum"}
 def load(t):
     g=pd.read_csv(f"{U}/gene_reads_adult_gtex_v11_{t}.gct.gz",sep="\t",skiprows=2)
     g=g[~g.Description.str.startswith(("MT-","RPL","RPS"))]

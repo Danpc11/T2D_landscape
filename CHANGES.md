@@ -1,5 +1,45 @@
 # Registro de cambios
 
+## v9.21 — exploración biológica
+
+- `docs/EXPLORATION_BIOLOGY.md`: búsqueda sistemática de biología nueva y dianas. Genoma completo, la interacción gen × insulina da 2 genes a FDR < 0.05 (IS vs IR) y 1 (IS vs T2D), con exceso claro de P pequeños (95 frente a 8 esperados): señal distribuida, ninguna diana nominable. Se documentan y descartan tres hipótesis: el eje de empalme CLK1/SRSF (set P = 0.39 y 0.077), la correlación con el alineamiento individual (circular por construcción) y los cuatro genes que "ganan" respuesta (filtro de umbrales, no prueba). Se deja constancia de que el resultado de los genes del reloj es una hipótesis preespecificada, no un hallazgo de cribado.
+
+## v1.0 — release
+
+Auditoría del código y preparación del repositorio para publicación:
+
+- `run_replication.sh` incluye los 18 pasos (faltaban 14 y 15) y **deja de propagar `T2D_OUT`**, que si se fijaba globalmente hacía que todos los pasos escribieran en la misma carpeta.
+- `requirements.txt` con las versiones exactas de Python con las que se produjeron los números del artículo, y `renv_packages.txt` con los paquetes de R.
+- `tests/smoke_test.py`: comprueba sin datos que el estadístico leave-one-out es insesgado a n = 4, 10 y 20 mientras el ingenuo no lo es; que el alineamiento separa grupos construidos y **no** separa grupos idénticos; que el nulo isótropo conserva longitudes y destruye la dirección; y que la corrección BH es monótona. Las 15 comprobaciones pasan.
+- `LICENSE` (MIT) y `CITATION.cff`.
+- README reescrito: hallazgos con las cifras finales, mapa con los 18 análisis, aislamiento de las carpetas de salida y una sección que dice con franqueza sobre qué descansa la afirmación central.
+- Verificado: sintaxis de los 20 scripts de Python, `bash -n` de los orquestadores, ausencia de rutas absolutas, correspondencia entre pasos y scripts.
+
+## v9.22 — modelo jerárquico von Mises-Fisher (sustituye al meta-análisis)
+
+`18_hierarchical_vmf.py` reúne las direcciones de respuesta de **140 participantes en 4 cohortes** (GSE22309 insulina, GSE26637 clamp adiposo, GSE202295 y GSE198922 ejercicio) y ajusta log κ = b0 + b_cohorte + b1·deterioro + b2·(deterioro × ejercicio). Cada cohorte conserva su propia dirección media, porque tejido, estímulo y plataforma difieren.
+
+| Parámetro | Estimación | IC95% | Efecto sobre κ | LR | *P* |
+|---|---|---|---|---|---|
+| b1, deterioro bajo insulina | −0.585 | −1.31 a +0.01 | **× 0.56** | 8.62 | 0.014 |
+| b2, interacción con ejercicio | +0.864 | +0.13 a +2.15 | × 2.37 | 7.90 | **0.0049** |
+
+La interacción es el resultado importante: **la especificidad a la insulina, que como comparación separada no alcanzaba significación (*P* = 0.41 y 0.70), sí la alcanza dentro del modelo conjunto**. Bajo ejercicio el efecto del deterioro se cancela por completo (κ × 1.32). Sustituye al meta-análisis de estadísticos de resumen, que daba *P* = 0.13.
+
+## v9.21 — alineamiento por persona y modelo von Mises-Fisher
+
+- **El análisis primario cambia.** La coherencia resume n personas en un número por grupo, de modo que la comparación dispone de dos observaciones. `16_alignment_primary.py` usa el **alineamiento de cada participante** con la dirección sana (leave-one-out) como desenlace, con n puntos por grupo. Mismo efecto, sin descartar información: en el subconjunto de mismo lote, *P* pasa de 0.10 y 0.19 (coherencia) a **0.013 y 0.006**. El nulo re-estima la dirección de referencia en cada permutación.
+- **Control de lote superado**: pseudo-grupos definidos solo por corrida dan −0.10, *P* = 0.57, frente a las coherencias de 0.75–0.87 que el lote producía con el estadístico anterior.
+- **Modelo generativo**: `17_vmf_model.py` ajusta una von Mises–Fisher a las direcciones de respuesta. κ = 8.2 (sensibles), 3.6 (resistentes), 4.0 (T2D); razón de verosimilitudes *P* = 0.0016 y 0.0086, y 0.0054 y 0.061 con mismo lote. κ es interpretable, comparable entre cohortes y permite cálculo de potencia analítico.
+- **Disociación de la magnitud**: ρ = 0.23 (*P* = 0.085) por persona, frente a ρ = 0.84–0.98 reportado por Raju 2026 en CRISPR unicelular. Hay que citar ese preprint: define el mismo estadístico con el nombre Shesha, en su versión ingenua.
+- Fig 5b y 5c rehechas: alineamiento por persona y κ con IC del 95%.
+
+## v9.20 — haz recalculado y control de especificidad
+
+- `14_sheaf_organ_sets.py`: **control que faltaba**. Con once tejidos de GTEx se compara la energía del haz entre conjuntos de órganos. La posición individual compartida **no es exclusiva de los órganos metabólicos**: los 30 pares de tejidos analizados la muestran (músculo–íleon ρ = 0.87, adiposo–riñón 0.87, hígado–suprarrenal 0.89). Los pares metabólicos la muestran **más**: exceso sobre el nulo 0.62 frente a 0.47 (Mann-Whitney P = 0.001; +0.126 ± 0.045 ajustando por log n). Con el mismo número de órganos, sustituir páncreas por estómago sube E de 0.95 a 1.21 y baja z de −29 a −22.
+- `15_discovery_sheaf.py`: el panel 1e se recalcula en Python a n igual por estadio (n = 10–12, limitado por adiposo). z = −6.9, −6.6 y −7.4 para sano, intermedio y T2D. **La tendencia monótona que reportábamos desaparece**: E = 0.861, 0.848, 0.790, es decir, la coherencia no se debilita con el estadio. La frase "coherence weakens monotonically with stage" sale del manuscrito.
+- `03a` prepara once tejidos de GTEx en lugar de cinco.
+
 ## v9.19 — ejecución única (punto 2 del revisor)
 
 Todo el pipeline corrido de una sola vez sobre el mismo `data/raw`; `results_final/` y las figuras salen de esa corrida. Cambios en cifras respecto de versiones anteriores:

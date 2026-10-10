@@ -74,7 +74,12 @@ def _opt(path, **kw):
     except (FileNotFoundError, pd.errors.EmptyDataError): return None
 de_sum = _opt(f"{RES}/de/de_summary.tsv"); de_set = _opt(f"{RES}/de/de_set_enrichment.tsv")
 net_metrics = _opt(f"{RES}/networks/all_metrics_combined.tsv")
+disc = _opt(f"{RES}/discovery/discovery_sheaf_by_stage.tsv")
+orgsets = _opt(f"{RES}/gtex/sheaf_organ_sets.tsv")
+cpairs = _opt(f"{RES}/gtex/canonical_all_pairs.tsv")
 exo = _opt(f"{RES}/response/exercise_response_geometry.tsv")
+align_pp = _opt(f"{RES}/response/alignment_per_person.tsv"); align_t = _opt(f"{RES}/response/alignment_tests.tsv")
+vmf_f = _opt(f"{RES}/response/vmf_fits.tsv"); vmf_t = _opt(f"{RES}/response/vmf_tests.tsv")
 exo_t = _opt(f"{RES}/response/exercise_group_tests.tsv")
 pwr = _opt(f"{RES}/power/power_and_confounding.tsv")
 if pwr is None: pwr = _opt(f"{RES}/response/power_and_confounding.tsv")
@@ -127,9 +132,16 @@ for (x, y, name) in [(2.4, 7.4, "islet"), (7.6, 7.4, "muscle"), (5, 2.6, "adipos
     ax.add_patch(Circle((x, y), 1.15, fc="#e8eef7", ec=C["IS"], lw=1)); ax.text(x, y, name, ha="center", va="center", fontsize=8.5)
 for a, b in [((3.6, 7.4), (6.4, 7.4)), ((3.0, 6.4), (4.4, 3.6)), ((7.0, 6.4), (5.6, 3.6))]: ax.add_patch(FancyArrowPatch(a, b, arrowstyle="<->", color="k", lw=0.7, mutation_scale=7))
 pass; ax.set_title("Cellular sheaf over\nthe tissue graph")
-ax = fig.add_subplot(gs[1, 1]); L.append((ax, "e")); st = ["healthy", "intermediate", "T2D"]; Eobs = [1.747, 1.803, 1.806]; Enull = [1.872, 1.919, 1.922]; Esd = [0.012, 0.013, 0.017]
-ax.errorbar(range(3), Enull, yerr=[1.96 * s for s in Esd], fmt="s", color=C["grey"], ms=4, capsize=2, label="gene-correspondence null"); ax.plot(range(3), Eobs, "o-", color=C["IS"], ms=4, label="observed")
-ax.set_xticks(range(3)); ax.set_xticklabels(["healthy", "interm.", "T2D"]); ax.set_ylabel("sheaf energy"); ax.set_ylim(1.70, 2.04); ax.set_xlim(-0.35, 2.35); ax.set_title("Three organs"); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=7.5)
+ax = fig.add_subplot(gs[1, 1]); L.append((ax, "e"))
+if disc is not None:
+    x = range(len(disc))
+    ax.errorbar(x, disc.null_mean, yerr=1.96 * disc.null_sd, fmt="s", color=C["grey"], ms=6, capsize=3, label="gene-correspondence null")
+    ax.errorbar(x, disc.observed, yerr=disc.observed_sd, fmt="o-", color=C["IS"], ms=6, capsize=3, label="observed")
+    ax.set_xticks(list(x)); ax.set_xticklabels([f"{r.stage}\n(n = {int(r.n_per_stage)})" for r in disc.itertuples()], fontsize=7.5)
+    ax.set_ylabel("sheaf energy"); ax.set_xlim(-0.4, len(disc) - 0.6)
+    ax.set_title("Three discovery cohorts,\nequal n per stage\n(z = " + ", ".join(f"{v:.1f}" for v in disc.z) + ")")
+    ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=1)
+else: ax.text(0.5, 0.5, "run 15_discovery_sheaf.py", ha="center", transform=ax.transAxes, fontsize=7)
 ax = fig.add_subplot(gs[1, 2]); L.append((ax, "f")); nul = rng.normal(1.905, 0.037, 300); ax.hist(nul, bins=25, color=C["null"]); ax.axvline(0.953, color=C["IS"], lw=1.5); ax.set_xlim(0.85, 2.05); ax.set_xlabel("sheaf energy"); ax.set_ylabel("null draws"); ax.set_title("GTEx, paired organs\nof 253 donors\n(z = −26)"); ax.text(0.953, ax.get_ylim()[1] * 0.98, " observed", color=C["IS"], fontsize=7.5, va="top")
 sub = gs[2, 0].subgridspec(1, 2, wspace=0.45)
 try:
@@ -173,6 +185,8 @@ try:
     cb = plt.colorbar(im, ax=ax, fraction=0.015, pad=0.012); cb.set_label("r with the shared position", fontsize=7.5); cb.ax.tick_params(labelsize=7)
     ax.set_title("Genes carrying the shared individual position (same sign in all three organs)")
 except FileNotFoundError: ax.text(0.5, 0.5, "run 03c", ha="center", transform=ax.transAxes)
+if cpairs is not None:
+    axm = fig.add_subplot(gs[3, 2]) if False else None
 save(fig, "Fig1_systemic_state", L)
 
 # ================= Fig 2: donde esta la enfermedad, tejido por tejido =================
@@ -188,8 +202,15 @@ for i_, (t, n, d) in enumerate([("islet", "5  (11–58 per group)", "ex vivo onl
     if t == "muscle": ax.add_patch(plt.Rectangle((-0.2, y - 0.9), 10.4, 2.0, fc="#eef3fb", ec="none", zorder=0))
     ax.text(0, y, t, fontsize=9.5, color=tcol[t], fontweight="bold", va="center"); ax.text(2.6, y, n, fontsize=8.5, va="center"); ax.text(6.0, y, d, fontsize=8.5, va="center")
 ax.set_title("Where is the disease? Three organs searched at rest and under insulin")
-ax = fig.add_subplot(gs[0, 2]); L.append((ax, "b")); ax.errorbar(range(3), [1.872, 1.919, 1.922], yerr=[0.024, 0.026, 0.034], fmt="s", color=C["grey"], ms=6, capsize=3, label="null"); ax.plot(range(3), [1.747, 1.803, 1.806], "o-", color="k", ms=6, label="observed")
-ax.set_xticks(range(3)); ax.set_xticklabels(["healthy", "interm.", "T2D"]); ax.set_ylabel("sheaf energy (3 organs)"); ax.set_xlim(-0.4, 2.4); ax.set_ylim(1.70, 2.02); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2, fontsize=7.5); ax.set_title("Between organs: coherence\nweakens with stage (no stage\ndifference significant)")
+ax = fig.add_subplot(gs[0, 2]); L.append((ax, "b"))
+if disc is not None:
+    x = range(len(disc)); ax.errorbar(x, disc.null_mean, yerr=1.96 * disc.null_sd, fmt="s", color=C["grey"], ms=5, capsize=2, label="null")
+    ax.errorbar(x, disc.observed, yerr=disc.observed_sd, fmt="o-", color="k", ms=5, capsize=2, label="observed")
+    ax.set_xticks(list(x)); ax.set_xticklabels(["healthy", "interm.", "T2D"], rotation=30, ha="right")
+    ax.set_ylabel("sheaf energy (3 organs)"); ax.set_xlim(-0.4, len(disc) - 0.6)
+    ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=2, fontsize=7.5)
+    ax.set_title("Between organs: shared architecture\nat every stage, with no\nmonotonic change")
+else: ax.text(0.5, 0.5, "run 15", ha="center", transform=ax.transAxes, fontsize=7)
 # --- fila 2: en reposo, nada (c, d) ---
 ax = fig.add_subplot(gs[1, 0:2]); L.append((ax, "c"))
 for acc, (t, lab_) in tis.items():
@@ -316,18 +337,39 @@ fig = plt.figure(figsize=(W, 12.2)); gs = fig.add_gridspec(5, 3, height_ratios=[
 # a magnitud
 ax = fig.add_subplot(gs[0, 0]); L.append((ax, "a")); dots(ax, {k: np.linalg.norm(D[k], axis=1) for k in D}, C, "|displacement| per person", log=True); ax.set_title("Insulin-resistant muscle responds\nas strongly as healthy muscle")
 # b coherencia con nulo
-ax = fig.add_subplot(gs[0, 1]); L.append((ax, "b")); nIR = null_coh("IS", "IR"); nT = null_coh("IS", "T2D"); parts = ax.violinplot([nIR, nT], positions=[0, 1], showextrema=False, widths=0.75)
-for pc in parts["bodies"]: pc.set_facecolor(C["null"]); pc.set_alpha(1)
-oIR = R.coherence_loo(D["IS"]) - R.coherence_loo(D["IR"]); oT = R.coherence_loo(D["IS"]) - R.coherence_loo(D["T2D"]); ax.scatter([0, 1], [oIR, oT], color=[C["IR"], C["T2D"]], zorder=3, s=90)
-pIR = tests[(tests.subset == "full") & (tests.test == "coherence IS - IR")].p.iloc[0]; pT = tests[(tests.subset == "full") & (tests.test == "coherence IS - T2D")].p.iloc[0]
-ax.text(0, oIR + 0.05, ptxt(pIR), ha="center"); ax.text(1, oT + 0.05, ptxt(pT), ha="center"); ax.text(0.5, -0.45, "label\npermutation", ha="center", color=C["grey"], fontsize=8)
-ax.set_xticks([0, 1]); ax.set_xticklabels(["IS − IR", "IS − T2D"]); ax.set_ylabel("loss of coherence (LOO)"); ax.axhline(0, color="k", lw=0.8); ax.set_xlim(-0.7, 1.7); ax.set_title("…but no longer in\na shared direction")
-# c mismo lote
+ax = fig.add_subplot(gs[0, 1]); L.append((ax, "b"))
+if align_pp is not None:
+    sub = align_pp[align_pp.dataset == "GSE22309_muscle_4h"]
+    for i_, g_ in enumerate(["IS", "IR", "T2D"]):
+        v = sub[sub.group == g_].alignment.dropna().values
+        ax.scatter(np.full(len(v), i_) + rng.normal(0, 0.08, len(v)), v, color=C[g_], s=28, alpha=0.8, lw=0, zorder=3)
+        ax.plot([i_ - 0.26, i_ + 0.26], [v.mean()] * 2, color="k", lw=2, zorder=4)
+    ax.set_xticks(range(3)); ax.set_xticklabels(["IS", "IR", "T2D"])
+    ax.set_ylabel("alignment with the healthy\nresponse direction, per person")
+    ax.axhline(0, color="k", lw=0.8, ls=":"); ax.set_xlim(-0.5, 2.5); ax.set_ylim(-1.05, 1.25)
+    if align_t is not None:
+        for i_, g_ in enumerate(["IR", "T2D"]):
+            r_ = align_t[(align_t.subset == "sameRun") & (align_t.contrast == f"IS vs {g_}")]
+            if len(r_): ax.text(i_ + 1, 1.12, ptxt(float(r_.p.iloc[0])), ha="center", fontsize=8)
+
 ax = fig.add_subplot(gs[0, 2]); L.append((ax, "c"))
-for i, k in enumerate(["IS", "IR", "T2D"]):
-    full = g("GSE22309_muscle_4h", k, "coherence_loo"); same = g("GSE22309_muscle_4h_sameRun", k, "coherence_loo"); nsame = int(g("GSE22309_muscle_4h_sameRun", k, "n"))
-    ax.plot([i - 0.18, i + 0.18], [full, same], color=C[k], lw=1.5); ax.scatter(i - 0.18, full, s=70, facecolors="white", edgecolors=C[k], lw=1.8, zorder=3); ax.scatter(i + 0.18, same, s=70, color=C[k], zorder=3); ax.text(i + 0.18, same - 0.11, f"n = {nsame}", ha="center", fontsize=8)
-ax.text(0.25, 0.93, "open: all pairs   filled: same-batch pairs", fontsize=8, color=C["grey"], transform=ax.transAxes); ax.set_xticks(range(3)); ax.set_xticklabels(["IS", "IR", "T2D"]); ax.set_ylim(0, 1.05); ax.set_xlim(-0.6, 2.6); ax.set_ylabel("coherence (LOO)"); ax.set_title("The effect survives restriction\nto same-batch biopsy pairs")
+if vmf_f is not None:
+    for sub_, off, fill in [("all", -0.16, False), ("sameRun", 0.16, True)]:
+        q = vmf_f[vmf_f.subset == sub_]
+        for i_, g_ in enumerate(["IS", "IR", "T2D"]):
+            r_ = q[q.group == g_]
+            if not len(r_): continue
+            r_ = r_.iloc[0]
+            ax.plot([i_ + off] * 2, [r_.kappa_lo, r_.kappa_hi], color=C[g_], lw=1.4)
+            ax.scatter(i_ + off, r_.kappa, color=C[g_] if fill else "white", edgecolors=C[g_], s=65, lw=1.7, zorder=3)
+    ax.set_xticks(range(3)); ax.set_xticklabels(["IS", "IR", "T2D"]); ax.set_yscale("log")
+    ax.set_ylabel("von Mises–Fisher concentration κ"); ax.set_xlim(-0.5, 2.5)
+    ax.text(0.02, 0.04, "open: all pairs\nfilled: same batch", transform=ax.transAxes, fontsize=7.5, va="bottom")
+    if vmf_t is not None:
+        for i_, g_ in enumerate(["IR", "T2D"]):
+            r_ = vmf_t[(vmf_t.subset == "sameRun") & (vmf_t.contrast == f"IS vs {g_}")]
+            if len(r_): ax.text(i_ + 1, ax.get_ylim()[1] * 0.75, ptxt(float(r_.p.iloc[0])), ha="center", fontsize=8)
+
 # d rosas (3 polares en una celda)
 cs = {}
 for k in ["IS", "IR", "T2D"]: cs[k] = [R.cosine(D[k][j], np.delete(D[k], j, 0).mean(0)) for j in range(len(D[k]))] if k == "IS" else [R.cosine(d, mIS) for d in D[k]]

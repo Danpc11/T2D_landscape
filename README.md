@@ -1,14 +1,14 @@
 # t2d_landscape
 
-Code and documents for the paper *Insulin resistance disrupts transcriptional coordination in skeletal muscle* — a reanalysis of 23 public human transcriptomic cohorts (islet, skeletal muscle, adipose tissue, blood; GTEx paired tissues; hyperinsulinaemic-clamp biopsies) asking whether the information about insulin sensitivity is in how muscle *is* or in how it *responds*.
+Code and documents for the paper *Insulin resistance reduces the directional concentration of the human muscle transcriptional response to insulin* — a reanalysis of 24 public human studies (29 accessions, 1,689 participants) across islet, skeletal muscle, adipose tissue and blood, asking whether the information about insulin sensitivity is in how muscle *is* or in how it *responds*.
 
 ## What the paper shows
 
-1. The resting muscle transcriptome of 49 clamped individuals carries no gene-level information about insulin sensitivity (0 genes at FDR < 0.1 vs clamp M-value).
-2. Healthy muscle responds to insulin along one direction shared by individuals, assembled over ~4 h, which includes a reset of the peripheral clock output (DBP, PER2, NR1D2).
-3. Insulin-resistant and diabetic muscle respond with the same magnitude but without a shared direction, and the clock output no longer responds.
-4. Adipose tissue fails by magnitude, not direction; bariatric surgery restores magnitude, not coordination.
-5. The organs of one person share one transcriptional state (cellular-sheaf coherence) that drifts continuously with disease, without a second basin.
+1. In resting muscle from 49 clamp-phenotyped individuals, no gene is associated with insulin sensitivity at FDR < 0.1. The 739 genes obtained without covariate adjustment, reproducing the published analysis of that cohort, disappear when expression is adjusted for **either age or BMI** alone.
+2. Healthy muscle responds to insulin along a shared direction established over ~4 h, which includes late modulation of clock-output genes (DBP, PER2, NR1D2; pre-specified set of nine).
+3. Insulin-resistant and diabetic muscle show no detectable reduction in magnitude but a loss of directional concentration: per-person alignment falls by 0.49 (*P* = 0.006 within hybridisation batch) and the von Mises–Fisher concentration κ falls from 8.2 to 3.6.
+4. The loss is specific to insulin. In a hierarchical model over 140 participants and four cohorts, impairment reduces κ by 44% under insulin and not at all under acute exercise (interaction *P* = 0.005).
+5. Tissues of one person share transcriptional architecture and position, but this is general rather than metabolic: all 30 GTEx tissue pairs show it, metabolic pairs more strongly. No cohort shows two stable states and there is no monotonic change with glycaemic stage.
 
 ## Repository
 
@@ -27,15 +27,22 @@ docs/
   REVIEW_RESPONSE.md        status of every point raised in the editorial review
   ROADMAP.md, THEORY_RESULTS.md, DRAFT_STORY.md
 run_all.sh              discovery pipeline (R networks + python/sheaf_coherence.py + python/landscape.py)
-run_replication.sh      every other analysis in the paper, in order (python/analyses/01–09)
+run_replication.sh      every other analysis in the paper, in order (python/analyses/01–18)
+requirements.txt        pinned Python versions used to produce the published numbers
+renv_packages.txt       R packages used by run_all.sh
+tests/smoke_test.py     checks the core statistics behave as claimed; needs no data
 R_scripts_*/            coexpression networks, metrics, bootstrap, drivers, limma
 python/sheaf_coherence.py, python/landscape.py
 python/lib/             geo.py (GEO readers, platform annotation), response.py (response geometry, LOO coherence, permutation tests)
 python/figures/         make_figures.py (Fig 1–6 from results/; T2D_PANEL_TITLES=1 draws
                         panel titles for internal review, off by default)
-python/analyses/        01 cohorts · 02 landscape replication · 03 GTEx · 04 insulin response ·
-                        05 resting muscle vs M · 06 myotubes · 07 supplementary · 08 audit ·
-                        09 classical differential expression and set enrichment
+python/analyses/        01 cohorts · 02 landscape replication · 03a-c GTEx · 04 insulin response ·
+                        05 resting muscle vs M (partial correlation) · 06 myotubes · 07 supplementary ·
+                        08 audit · 09 classical differential expression · 10 network panel ·
+                        11 exercise specificity · 12 confounding and power · 13 cohort inventory ·
+                        14 sheaf across organ sets (specificity control) · 15 discovery sheaf by stage ·
+                        16 per-person alignment (primary analysis) · 17 von Mises-Fisher model ·
+                        18 hierarchical vMF across cohorts
 python/simulation/      synthetic validations and power
 data/README.md          every input file and where to download it
 ```
@@ -46,11 +53,14 @@ data/README.md          every input file and where to download it
 # 1. put the public inputs in data/raw/ as listed in data/README.md
 # 2. discovery (needs R with WGCNA, limma, GEOquery; ~hours)
 bash run_all.sh --workers=32
-# 3. everything else (python 3.10+, numpy, scipy, pandas, openpyxl; ~30 min)
-bash run_replication.sh
+# 3. everything else (python 3.10+; pip install -r requirements.txt; ~45 min)
+bash run_replication.sh          # add --quick for a fast, lower-resolution pass
+python tests/smoke_test.py       # sanity check of the core statistics, needs no data
 ```
 
-Outputs land in `results/` (`response/`, `resting/`, `myotubes/`, `gtex/`, `replication/`, `supplementary/`, `audit/`, `de/`).
+Each step writes to its own `results/<subfolder>`: `replication/`, `gtex/`, `discovery/`, `response/`,
+`resting/`, `myotubes/`, `supplementary/`, `audit/`, `de/`, `networks/`, `power/`, `inventory/`.
+Do not set `T2D_OUT` globally; the orchestrator unsets it so that each step uses its own default.
 Then build the figures from those tables only:
 
 ```bash
@@ -68,9 +78,21 @@ default `data/export`), `T2D_RES` / `T2D_OUT` (results, default `results/...`) a
 
 ## Status
 
-Manuscript drafted in `docs/MANUSCRIPT.md` (Nature Metabolism, Analysis format), with figure legends in
-`docs/FIGURE_LEGENDS.md` and the record of what each claim survived in `docs/AUDIT.md`. Numbers in the
-text are regenerated by `run_replication.sh` and must be checked against the legends before submission. The central claim (loss of coordination and of the insulin→clock coupling in insulin resistance) rests on GSE22309 (2007, n = 20/20/15, batch-uneven) with replication of its components in GSE9105, GSE157988, GSE182117 and GSE182120; see `docs/AUDIT.md` for what survives, what is weakened and what was withdrawn, and `docs/REPLICATION.md` for every cohort.
+Manuscript in `docs/MANUSCRIPT.md` (Article format), supplementary notes in `docs/SUPPLEMENTARY.md`,
+figure legends in `docs/FIGURE_LEGENDS.md`.
+
+What the central claim rests on, stated plainly. The insulin contrast comes from one cohort, GSE22309
+(2007, n = 20/20/15), in which hybridisation batch is unevenly distributed; the primary analysis is
+therefore restricted to the 35 individuals whose two biopsies were processed in the same run, where
+the effect is undiminished and the batch-only control is null. The specificity to insulin is estimated
+jointly over 140 participants from four cohorts. Components of the result replicate in GSE9105,
+GSE157988, GSE182117 and GSE182120. A modern sequenced clamp cohort with paired biopsies would settle
+the main contrast and does not currently exist in public repositories: the deposited samples of the
+largest recent clamp study are fasted only.
+
+`docs/AUDIT.md` lists what survives, what is weakened and what was withdrawn; `docs/REVIEW_RESPONSE.md`
+tracks the points raised in editorial review; `docs/EXPLORATION_BIOLOGY.md` records the analyses that
+were tried and did not hold, so they are not repeated.
 
 ## Data and licence
 

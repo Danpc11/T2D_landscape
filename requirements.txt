@@ -1,0 +1,9 @@
+# Python 3.10+. Versiones con las que se produjeron los resultados del artículo.
+numpy==2.4.4
+scipy==1.17.1
+pandas==3.0.2
+scikit-learn==1.8.0
+matplotlib==3.10.8
+openpyxl==3.1.5
+rdata==1.1.0
+pyarrow==26.0.0

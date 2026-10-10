@@ -1,0 +1,19 @@
+# Paquetes de R usados por run_all.sh (pipeline de descubrimiento).
+# CRAN
+data.table
+dplyr
+tidyr
+tibble
+stringr
+igraph
+Matrix
+expm
+foreach
+doParallel
+doRNG
+WGCNA
+# Bioconductor
+GEOquery
+limma
+clusterProfiler
+org.Hs.eg.db

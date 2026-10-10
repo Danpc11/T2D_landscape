@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+title: "t2d_landscape: code for the reanalysis of the human transcriptional response to insulin"
+message: "If you use this code, please cite the accompanying article."
+type: software
+authors:
+  - name: "[to be completed]"
+repository-code: "https://github.com/Danpc11/t2d_landscape"
+license: MIT
