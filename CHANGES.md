@@ -1,5 +1,14 @@
 # Registro de cambios
 
+## v9.13 — lienzo mas ancho
+
+- Ancho de figura configurable con `T2D_FIG_WIDTH_MM` (250 mm por defecto para la redacción; 180 mm es el doble columna de Nature y basta poner `T2D_FIG_WIDTH_MM=180` para la versión de envío). Los tipos de letra son absolutos, así que ensanchar el lienzo da aire a los paneles sin reducir la legibilidad.
+
+## v9.12 — las redes en la figura
+
+- `python/analyses/10_network_panel.py`: red de coexpresión de ejemplo (disposición por fuerzas y módulos) y copia de las métricas por estadio a n igual; encadenado en `run_replication.sh`.
+- Fig 1a–c: la red sobre la que se construye el haz y las métricas de organización ($E_G$, $\bar{R}$) por estadio y órgano. Paneles renumerados a–l y leyendas actualizadas.
+
 ## v9.11 — repositorio al día
 
 - `.gitignore` (datos descargados, `results/`, `figures/`, caches) y mapa del repo actualizado en `README.md`: `docs/` desglosado, pasos 01–09, generación de figuras y variables de entorno (`T2D_RAW`, `T2D_EXPORT`, `T2D_RES`, `T2D_OUT`, `T2D_FIG`).

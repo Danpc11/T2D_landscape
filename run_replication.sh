@@ -14,5 +14,6 @@ step "06 myotube clock"                 python python/analyses/06_myotube_clock.
 step "07 supplementary"                 python python/analyses/07_remission_and_blood.py
 step "08 audit: Fisher null"            python python/analyses/08_audit_fisher_null.py
 step "09 classical DE + enrichment"     python python/analyses/09_classical_de.py
+step "10 network panel inputs"          python python/analyses/10_network_panel.py
 step "figures"                          python python/figures/make_figures.py
 echo "done: results/{response,resting,myotubes,gtex,replication,supplementary,audit,de} and figures/"

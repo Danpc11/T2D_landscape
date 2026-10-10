@@ -52,7 +52,8 @@ Outputs land in `results/` (`response/`, `resting/`, `myotubes/`, `gtex/`, `repl
 Then build the figures from those tables only:
 
 ```bash
-python python/figures/make_figures.py        # writes figures/Fig1..Fig6 (.pdf and .png)
+python python/figures/make_figures.py                       # figures/Fig1..Fig6, 250 mm wide (drafting)
+T2D_FIG_WIDTH_MM=180 python python/figures/make_figures.py  # Nature double-column width (submission)
 ```
 
 `data/raw/`, `data/export/`, `results/` and `figures/` are not versioned.
