@@ -33,7 +33,23 @@ def analyse(acc, tissue, subj, timecol, basal, times):
             D = R.displacements(Z, prs)
             out.append(dict(tissue=tissue, dataset=acc, group=grp, timepoint=t, n=len(prs),
                             magnitude=float(np.linalg.norm(D, axis=1).mean()), coherence=R.coherence_loo(D)))
-    return pd.DataFrame(out)
-m = analyse("GSE202295", "muscle", "from_title", "timepoint", "basal", ["post", "recovery"])
-a = analyse("GSE198922", "adipose", "participant id", "exercise", "pre", ["post", "rec"])
-r = pd.concat([m, a]); r.to_csv(f"{OUT}/exercise_response_geometry.tsv", sep="\t", index=False); print(r.round(3).to_string(index=False))
+    # contraste NGT vs T2D por punto temporal: coherencia y direccion, con sus P
+    tests = []
+    for t in times:
+        Ds = {}
+        for grp in ["NGT", "T2D"]:
+            q = p[p.diagnosis == grp]
+            prs = [(q[(q.subj == s) & (q.tp == basal)].gsm.iloc[0], q[(q.subj == s) & (q.tp == t)].gsm.iloc[0])
+                   for s in q.subj.dropna().unique() if len(q[(q.subj == s) & (q.tp == basal)]) and len(q[(q.subj == s) & (q.tp == t)])]
+            if len(prs) >= 4: Ds[grp] = R.displacements(Z, prs)
+        if len(Ds) < 2: continue
+        obs, pv = R.perm_test_coherence(Ds["NGT"], Ds["T2D"], rng)
+        cos_obs, cos_null, cos_p = R.perm_test_direction(Ds["NGT"], Ds["T2D"], rng)
+        tests.append(dict(tissue=tissue, dataset=acc, timepoint=t, n_NGT=len(Ds["NGT"]), n_T2D=len(Ds["T2D"]),
+                          delta_coherence=obs, p_coherence=pv, cosine=cos_obs, cosine_null=cos_null, p_cosine=cos_p))
+    return pd.DataFrame(out), pd.DataFrame(tests)
+m, mt = analyse("GSE202295", "muscle", "from_title", "timepoint", "basal", ["post", "recovery"])
+a, at = analyse("GSE198922", "adipose", "participant id", "exercise", "pre", ["post", "rec"])
+r = pd.concat([m, a]); r.to_csv(f"{OUT}/exercise_response_geometry.tsv", sep="\t", index=False)
+t = pd.concat([mt, at]); t.to_csv(f"{OUT}/exercise_group_tests.tsv", sep="\t", index=False)
+print(r.round(3).to_string(index=False)); print(); print(t.round(3).to_string(index=False))

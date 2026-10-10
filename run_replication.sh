@@ -17,5 +17,6 @@ step "09 classical DE + enrichment"     python python/analyses/09_classical_de.p
 step "10 network panel inputs"          python python/analyses/10_network_panel.py
 step "11 exercise specificity"          python python/analyses/11_exercise_specificity.py
 step "12 power and confounding"         python python/analyses/12_power_and_confounding.py
+step "13 cohort inventory"              python python/analyses/13_cohort_inventory.py
 step "figures"                          python python/figures/make_figures.py
 echo "done: results/{response,resting,myotubes,gtex,replication,supplementary,audit,de} and figures/"

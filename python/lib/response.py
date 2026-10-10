@@ -26,21 +26,21 @@ def coherence_naive(D):
 
 def cosine(a, b): return float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-12))
 
-def perm_test_coherence(DA, DB, rng, B=3000):
+def perm_test_coherence(DA, DB, rng, B=2000):
     """p para coherencia(A) - coherencia(B) > 0, permutando etiquetas de individuo."""
     allD = np.vstack([DA, DB]); nA = len(DA); obs = coherence_loo(DA) - coherence_loo(DB); null = []
     for _ in range(B):
         idx = rng.permutation(len(allD)); null.append(coherence_loo(allD[idx[:nA]]) - coherence_loo(allD[idx[nA:]]))
     return obs, (np.sum(np.array(null) >= obs) + 1) / (B + 1)
 
-def perm_test_direction(DA, DB, rng, B=3000):
+def perm_test_direction(DA, DB, rng, B=2000):
     """p para cos(dir A, dir B) < nulo (direcciones mas distintas de lo esperado)."""
     allD = np.vstack([DA, DB]); nA = len(DA); obs = cosine(DA.mean(0), DB.mean(0)); null = []
     for _ in range(B):
         idx = rng.permutation(len(allD)); null.append(cosine(allD[idx[:nA]].mean(0), allD[idx[nA:]].mean(0)))
     return obs, float(np.mean(null)), (np.sum(np.array(null) <= obs) + 1) / (B + 1)
 
-def paired_swap_test(DA, DB, stat, rng, B=3000):
+def paired_swap_test(DA, DB, stat, rng, B=3000):   # pareado: 3000, como dice la leyenda
     """A y B: respuestas de LAS MISMAS personas en dos condiciones (mismo orden). Intercambia A/B dentro de persona."""
     n = min(len(DA), len(DB)); obs = stat(DB[:n]) - stat(DA[:n]); null = []
     for _ in range(B):
@@ -105,3 +105,14 @@ def alluvial(ax, flows, left_label, right_labels, colors, title=None):
         ax.add_patch(PathPatch(Path(p, codes), fc=colors[lab], ec="none", alpha=0.45)); y += f; yr += h_r + gap
     ax.set_xlim(-0.1, 1.4); ax.set_ylim(0, 1); ax.axis("off")
     if title: ax.set_title(title)
+
+def random_rotation(d, rng):
+    """Matriz ortogonal uniforme (Haar) de dimension d, para nulos isotropos."""
+    A = rng.normal(size=(d, d)); Q, Rm = np.linalg.qr(A); return Q * np.sign(np.diag(Rm))
+
+def isotropic_null(D, rng):
+    """Desplazamientos con la misma longitud pero direcciones isotropas: destruye cualquier
+    direccion compartida sin conservar los ejes originales (a diferencia de cambiar el signo)."""
+    n, d = D.shape; L = np.linalg.norm(D, axis=1, keepdims=True)
+    V = rng.normal(size=(n, d)); V /= (np.linalg.norm(V, axis=1, keepdims=True) + 1e-12)
+    return V * L

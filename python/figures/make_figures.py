@@ -75,6 +75,7 @@ def _opt(path, **kw):
 de_sum = _opt(f"{RES}/de/de_summary.tsv"); de_set = _opt(f"{RES}/de/de_set_enrichment.tsv")
 net_metrics = _opt(f"{RES}/networks/all_metrics_combined.tsv")
 exo = _opt(f"{RES}/response/exercise_response_geometry.tsv")
+exo_t = _opt(f"{RES}/response/exercise_group_tests.tsv")
 pwr = _opt(f"{RES}/power/power_and_confounding.tsv")
 if pwr is None: pwr = _opt(f"{RES}/response/power_and_confounding.tsv")
 try:
@@ -145,7 +146,14 @@ except FileNotFoundError:
     ax = fig.add_subplot(gs[2, 0]); L.append((ax, "g")); R.chord(ax, ["muscle", "adipose", "pancreas"], {(0, 1): 0.932, (0, 2): 0.913, (1, 2): 0.892}, [C["IS"], C["IR"], "#6b46c1"], null_weights={(0, 1): 0.23, (0, 2): 0.23, (1, 2): 0.23}); ax.set_title("The position is the person's")
 ax = fig.add_subplot(gs[2, 1]); L.append((ax, "h")); ax.scatter([0, 1], [31.2, 26.1], color=C["IS"], s=50, zorder=3); ax.plot([0, 1], [31.2, 26.1], color=C["IS"]); ax.set_ylim(0, 35); ax.set_xticks([0, 1]); ax.set_xticklabels(["age, sex,\nHardy", "+ RIN, ischaemia,\nbatch"]); ax.set_ylabel("|z| of sheaf energy", labelpad=2); ax.set_xlim(-0.5, 1.5)
 ax2 = ax.twinx(); ax2.scatter([0, 1], [0.929, 0.932], color=C["IR"], s=50, marker="s", zorder=3); ax2.plot([0, 1], [0.929, 0.932], color=C["IR"]); ax2.set_ylim(0.8, 1); ax2.set_ylabel("ρ muscle–adipose", color=C["IR"], labelpad=2); ax2.spines["top"].set_visible(False); ax.set_title("Robust to technical\ncovariates (GTEx)")
-ax = fig.add_subplot(gs[2, 2]); L.append((ax, "i")); ax.scatter(range(3), [0.296, 0.233, 0.228], color=C["IS"], s=50, zorder=3); ax.vlines(range(3), 0, [0.296, 0.233, 0.228], color=C["IS"], lw=2); ax.set_xticks(range(3)); ax.set_xticklabels(["muscle", "adipose", "pancreas"], rotation=30, ha="right"); ax.set_ylabel("cross-validated R²", labelpad=2); ax.set_ylim(0, 0.45); ax.set_xlim(-0.5, 2.5); ax.set_title("Whole blood predicts the\nsame donor's organ state (n = 224)")
+ax = fig.add_subplot(gs[2, 2]); L.append((ax, "i"))
+bt = _opt(f"{RES}/gtex/blood_to_tissue.tsv")
+if bt is not None:
+    ax.errorbar(range(len(bt)), bt.R2_mean, yerr=bt.R2_sd, fmt="o", color=C["IS"], ms=9, capsize=3, elinewidth=1.2, zorder=3)
+    ax.set_xticks(range(len(bt))); ax.set_xticklabels(bt.tissue, rotation=30, ha="right"); ax.set_xlim(-0.5, len(bt) - 0.5)
+else:
+    ax.scatter(range(3), [0.279, 0.229, 0.217], color=C["IS"], s=50, zorder=3); ax.set_xticks(range(3)); ax.set_xticklabels(["muscle", "adipose", "pancreas"], rotation=30, ha="right"); ax.set_xlim(-0.5, 2.5)
+ax.set_ylabel("cross-validated R²", labelpad=2); ax.set_ylim(0, 0.45); ax.set_title("Whole blood predicts the\nsame donor's organ state\n(n = 224, mean ± s.d. across folds)")
 ax = fig.add_subplot(gs[3, 0]); L.append((ax, "j"))
 for j, (hcol, mk, lab_) in enumerate([("n_basins_h07", "v", "narrow"), ("n_basins_h10", "o", "median"), ("n_basins_h14", "^", "wide")]):
     ax.scatter(np.arange(len(cols)) + (j - 1) * 0.22, [rows[a][hcol] if a in rows else np.nan for a in cols], marker=mk, s=12, color=C["IS"], label=f"{lab_} bandwidth")
@@ -210,9 +218,9 @@ ax = fig.add_subplot(gs[2, 2]); L.append((ax, "f")); ax.axis("off"); ax.set_xlim
 for i_, (org, rest, resp, fails) in enumerate([("islet", "11 genes (n = 85)", "ex vivo, coherence 0.4–0.9", "not comparable"), ("adipose", "none", "magnitude ↓", "amplitude"), ("muscle", "none", "coherence ↓, clock uncoupled", "coordination")]):
     y = 0.88 - 0.33 * i_
     if org == "muscle": ax.add_patch(plt.Rectangle((0, y - 0.26), 1, 0.35, fc="#eef3fb", ec="none", zorder=0))
-    ax.text(0.02, y, org, fontsize=9.5, color=tcol[org], fontweight="bold", va="center")
-    ax.text(0.02, y - 0.085, f"at rest: {rest}", fontsize=8, va="center"); ax.text(0.02, y - 0.155, f"in the response: {resp}", fontsize=7.5, va="center")
-    if fails != "—": ax.text(0.02, y - 0.225, f"what fails: {fails}", fontsize=8, va="center", style="italic")
+    ax.text(0.02, y, org, fontsize=9, color=tcol[org], fontweight="bold", va="center")
+    ax.text(0.02, y - 0.085, f"at rest: {rest}", fontsize=7, va="center"); ax.text(0.02, y - 0.155, f"under perturbation: {resp}", fontsize=7, va="center")
+    if fails != "—": ax.text(0.02, y - 0.225, f"what differs: {fails}", fontsize=7, va="center", style="italic")
 ax.set_title("Muscle is where the response\nfragments and where paired data\nexist in all three states")
 # --- fila 4: la lectura canonica (expresion diferencial en reposo) ---
 if de_sum is not None:
@@ -367,6 +375,11 @@ if exo is not None:
     axj.set_xticks(range(len(ins))); axj.set_xticklabels([x[0] for x in ins]); axj.set_ylim(0, 1); axj.set_xlim(-0.5, len(ins) - 0.5); axj.set_ylabel("coherence (LOO)")
     axj.scatter([], [], color=C["IS"], s=60, label="healthy / NGT"); axj.scatter([], [], color=C["T2D"], s=60, label="T2D")
     axj.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, -0.42), ncol=2)
+    if exo_t is not None:
+        tt_ = exo_t[(exo_t.tissue == "muscle") & (exo_t.timepoint == "recovery")]
+        if len(tt_): axj.text(1, 0.93, f"P = {tt_.p_coherence.iloc[0]:.2f}", ha="center", fontsize=8)
+    pIS_T2D = tests[(tests.subset == "full") & (tests.test == "coherence IS - T2D")].p.iloc[0]
+    axj.text(0, 0.93, ptxt(pIS_T2D), ha="center", fontsize=8)
 save(fig, "Fig5_IR_fragments", L)
 
 

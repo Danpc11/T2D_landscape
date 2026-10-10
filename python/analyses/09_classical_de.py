@@ -24,7 +24,7 @@ for acc, tis in [("GSE164416", "islet"), ("GSE50244", "islet"), ("GSE159984", "i
     e = e[p[".sample_id"]]; cond = p.condition.values; lv = list(pd.unique(cond))
     hi = "T2D" if "T2D" in lv else ("obese" if "obese" in lv else lv[-1]); lo = "ND" if "ND" in lv else ("normal" if "normal" in lv else lv[0])
     A = e.loc[:, cond == lo].to_numpy(); B = e.loc[:, cond == hi].to_numpy()
-    t, pv = stats.ttest_ind(B, A, axis=1); lfc = B.mean(1) - A.mean(1); fdr = R.bh(pv)
+    t, pv = stats.ttest_ind(B, A, axis=1, equal_var=False)   # Welch; lfc = B.mean(1) - A.mean(1); fdr = R.bh(pv)
     pd.DataFrame({"gene": e.index, "logFC": lfc, "t": t, "p": pv, "fdr": fdr}).to_csv(f"{OUT}/de_{acc}.tsv", sep="\t", index=False)
     rows.append(dict(acc=acc, tissue=tis, contrast=f"{hi} vs {lo}", n_lo=int((cond == lo).sum()), n_hi=int((cond == hi).sum()), n_genes=len(e), n_fdr10=int((fdr < 0.1).sum()), n_p01=int((pv < 0.01).sum()), expected_p01=int(0.01 * len(e))))
     tt = pd.Series(np.abs(t), index=e.index)

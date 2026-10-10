@@ -11,7 +11,10 @@ p["M"] = pd.to_numeric(p["m-value"]); p["bmi"] = pd.to_numeric(p.bmi); p["age"] 
 D = np.column_stack([np.ones(len(p)), lab, p.age.values, p.bmi.values])
 Y = g[p.gsm].to_numpy().T; keep = (Y > np.percentile(Y, 30)).mean(0) > 0.5; Y = Y[:, keep]; genes = g.index[keep]
 b, *_ = np.linalg.lstsq(D, Y, rcond=None); Rz = Y - D[:, 1:] @ b[1:]
-res = np.array([stats.spearmanr(Rz[:, j], p.M) for j in range(Rz.shape[1])]); tt = np.array([stats.ttest_ind(Rz[t2d == 1, j], Rz[t2d == 0, j]) for j in range(Rz.shape[1])])
+# correlacion parcial: el valor M tambien se residualiza sobre las mismas covariables,
+# en lugar de correlacionar expresion residualizada con M crudo
+bM, *_ = np.linalg.lstsq(D, p.M.to_numpy(float), rcond=None); Mres = p.M.to_numpy(float) - D[:, 1:] @ bM[1:]
+res = np.array([stats.spearmanr(Rz[:, j], Mres) for j in range(Rz.shape[1])]); tt = np.array([stats.ttest_ind(Rz[t2d == 1, j], Rz[t2d == 0, j], equal_var=False) for j in range(Rz.shape[1])])
 gw = pd.DataFrame({"rho_M": res[:, 0], "p_M": res[:, 1], "fdr_M": R.bh(res[:, 1]), "t_T2D_vs_NGT": tt[:, 0], "p_T2D": tt[:, 1], "fdr_T2D": R.bh(tt[:, 1])}, index=genes).sort_values("p_M")
 gw.to_csv(f"{OUT}/GSE182120_genomewide_M.tsv", sep="\t")
 clock = ["DBP", "TEF", "HLF", "PER1", "PER2", "PER3", "NR1D1", "NR1D2", "BHLHE40", "ARNTL", "CLOCK", "CRY1", "NFIL3", "TXNIP", "KLF15", "PPP1R3B", "PPARGC1A", "PDK4"]
@@ -28,5 +31,6 @@ with open(f"{OUT}/summary.txt", "w") as f:
     f.write(f"genes tested {len(gw)}; FDR<0.1 vs M: {(gw.fdr_M<0.1).sum()}; p<0.01: {(gw.p_M<0.01).sum()} (expected by chance ~{int(0.01*len(gw))})\n")
     f.write(f"FDR<0.1 T2D vs NGT: {(gw.fdr_T2D<0.1).sum()}\n")
     for k, nm in [(0, "NGT"), (1, "T2D")]: f.write(f"{nm}: dispersion={np.trace(np.cov(Z[t2d==k].T)):.0f} Ic={L.critical_index(Xr[t2d==k]):.2f}\n")
-    r, pv = stats.spearmanr(p.M, dep); f.write(f"depth ~ M: rho={r:.2f} p={pv:.3f}\n")
+    r, pv = stats.spearmanr(Mres, dep); f.write(f"depth ~ M (partial, same covariates): rho={r:.2f} p={pv:.3f}\n")
+    f.write(f"M-value units: as deposited in GSE182120 (verify against the source publication before submission)\n")
 print(open(f"{OUT}/summary.txt").read()); print(gw.loc[[c for c in clock if c in gw.index], ["rho_M", "p_M", "t_T2D_vs_NGT", "p_T2D"]].round(3).to_string())

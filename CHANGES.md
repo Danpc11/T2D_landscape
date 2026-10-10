@@ -1,5 +1,22 @@
 # Registro de cambios
 
+## v9.18 — correcciones de la revisión editorial
+
+- **Fig 1f con el nulo real**: `03b` exporta las 200 permutaciones (`sheaf_null_draws.tsv`) y la figura las grafica; z pasa de −26 (100 permutaciones) a **−29.7** (200).
+- **Sin fuga en sangre→tejido**: residualización, selección, escalado y ambos PCA dentro de cada fold; R² 0.279 / 0.229 / 0.217 (antes 0.296 / 0.233 / 0.228).
+- **Welch** real en `05` y `09`; permutaciones 2 000 / 3 000 según la leyenda.
+- **Nulo isótropo** (`isotropic_null`) en la simulación de potencia, en lugar del cambio de signo, que conservaba los ejes.
+- **TOST de magnitud**: ninguna comparación es equivalente con margen 0.5 log2, así que "magnitud conservada" pasa a "no se detectó reducción".
+- **Ejercicio**: `exercise_group_tests.tsv` con Δcoherencia, cosenos y P reales (músculo en recuperación P = 0.70, coseno 0.84).
+- **Fig 2f** sustituye los "none" por descripciones por cohorte; `docs/REVIEW_RESPONSE.md` lleva el estado de los 13 puntos.
+
+## v9.17 — especificidad, confusión y potencia
+
+- `11_exercise_specificity.py`: el músculo diabético responde al ejercicio agudo con la misma coherencia que el sano (0.53 vs 0.45, P = 0.69, coseno 0.84; GSE202295), y lo mismo en adiposo (GSE198922). La pérdida es específica de la insulina. Panel 5j.
+- `12_power_and_confounding.py`: el estadístico leave-one-out es insesgado a cualquier n (el ingenuo da 0.41 con n = 4); el lote de hibridación genera por sí solo coherencias de 0.75–0.87, por lo que el análisis de mismo lote pasa a ser primario; potencia por tamaño y efecto. ED Fig. 3.
+- GSE159984 en reposo (85 donantes) añadido a Fig 2g,h; su respuesta ex vivo en ED Fig. 2.
+- Manuscrito actualizado: resumen con especificidad, análisis primario de mismo lote, limitaciones reescritas sobre ED Fig. 3.
+
 ## v9.16 — manuscrito completo
 
 - `docs/MANUSCRIPT_FULL.md`: manuscrito en formato Nature (resumen, introducción, resultados, discusión y limitaciones, métodos escritos por propósito, referencias, leyendas y material suplementario), compilado a PDF con las figuras al final.

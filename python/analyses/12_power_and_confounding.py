@@ -2,7 +2,8 @@
 """Cuanta coherencia puede fabricar el ruido, y cuanta real se detectaria.
 Responde a tres preguntas sobre la medida, usando los propios datos (GSE22309):
  (a) sesgo: que coherencia da el estadistico cuando no hay direccion compartida (desplazamientos
-     con signo aleatorio) y como depende del tamano de grupo;
+     con direcciones isotropas, conservando la longitud; cambiar solo el signo conservaria los ejes
+     originales y daria un nulo demasiado benevolo) y como depende del tamano de grupo;
  (b) confusion: cuanta coherencia aparece entre individuos que solo comparten lote de hibridacion,
      y cuanto se desplaza la estimacion al restringir a pares del mismo lote;
  (c) potencia: que diferencia de coherencia se detecta con 80% de potencia a cada n.
@@ -22,7 +23,8 @@ rows = []
 for n in range(4, 21):
     vals_loo, vals_naive = [], []
     for _ in range(200):
-        idx = rng.choice(len(D["IS"]), n, replace=True); Dr = D["IS"][idx] * rng.choice([-1, 1], size=(n, 1))
+        idx = rng.choice(len(D["IS"]), n, replace=True)
+        Dr = R.isotropic_null(D["IS"][idx], rng)       # misma longitud, direcciones isotropas
         vals_loo.append(R.coherence_loo(Dr)); vals_naive.append(R.coherence_naive(Dr))
     rows.append(dict(analysis="null coherence vs n", n=n, loo_mean=np.mean(vals_loo), loo_p95=np.percentile(vals_loo, 95),
                      naive_mean=np.mean(vals_naive), naive_p95=np.percentile(vals_naive, 95)))
@@ -46,10 +48,20 @@ for n in [8, 11, 15, 20, 30, 40]:
             A = D["IS"][rng.choice(len(D["IS"]), n, replace=True)]
             B = D["IS"][rng.choice(len(D["IS"]), n, replace=True)]
             w = rng.random(n) < delta            # fraccion de individuos con direccion aleatorizada
-            B = np.where(w[:, None], B * rng.choice([-1, 1], size=(n, 1)), B)
+            B = np.where(w[:, None], R.isotropic_null(B, rng), B)
             _, pv = R.perm_test_coherence(A, B, rng, B=200)
             hits += pv < 0.05
         reps = int(os.environ.get('T2D_POWER_REPS', 120)); rows.append(dict(analysis="power", n=n, delta_fraction_randomised=delta, power=hits / reps))
     pd.DataFrame(rows).to_csv(f"{OUT}/power_and_confounding.tsv", sep="\t", index=False)
+# (d) equivalencia de magnitudes (TOST sobre log-magnitud, margen 0.5 en log2)
+from scipy import stats as _st
+lm = {g: np.log2(np.linalg.norm(D[g], axis=1)) for g in D}
+for g in ["IR", "T2D"]:
+    d1 = lm["IS"]; d2 = lm[g]; diff = d2.mean() - d1.mean()
+    se = np.sqrt(d1.var(ddof=1) / len(d1) + d2.var(ddof=1) / len(d2)); dfree = len(d1) + len(d2) - 2
+    margin = 0.5   # un factor 1.41 en magnitud
+    p_lo = _st.t.sf((diff + margin) / se, dfree); p_hi = _st.t.cdf((diff - margin) / se, dfree)
+    rows.append(dict(analysis="magnitude equivalence (TOST)", group=g, diff_log2=diff, se=se, margin_log2=margin,
+                     p_tost=max(p_lo, p_hi), equivalent=max(p_lo, p_hi) < 0.05))
 df = pd.DataFrame(rows); df.to_csv(f"{OUT}/power_and_confounding.tsv", sep="\t", index=False)
 for a in df.analysis.unique(): print("==", a); print(df[df.analysis == a].dropna(axis=1, how="all").round(3).to_string(index=False))

@@ -24,6 +24,7 @@ docs/
   AUDIT.md                  every claim re-tested: survives, weakened or withdrawn
   REPLICATION.md            every cohort analysed and its verdict
   TARGETS.md                gene-level exploration and candidate targets
+  REVIEW_RESPONSE.md        status of every point raised in the editorial review
   ROADMAP.md, THEORY_RESULTS.md, DRAFT_STORY.md
 run_all.sh              discovery pipeline (R networks + python/sheaf_coherence.py + python/landscape.py)
 run_replication.sh      every other analysis in the paper, in order (python/analyses/01–09)
