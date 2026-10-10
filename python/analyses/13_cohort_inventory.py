@@ -20,6 +20,9 @@ CUR = [
  ("GSE25462","Jin 2011","muscle","cross-sectional","none",50,"ND / ND family history / T2D","landscape, differential expression, example network"),
  ("GSE182120","Gabriel 2021","muscle","cross-sectional, clamp-phenotyped","none (resting biopsy)",49,"NGT / T2D, clamp M-value in all","resting association with insulin sensitivity (Fig. 3)"),
  ("GSE182117","Gabriel 2021","myotubes","in vitro time series","high glucose + insulin, 12–54 h",12,"NGT / T2D donors","clock amplitude and treatment effect (Fig. 5g,h)"),
+ ("GSE81965","Väremo 2017","myotubes","in vitro, paired within donor","insulin 100 nM, 0.5–2 h",24,"NGT / T2D, balanced for obesity and sex","response geometry in the isolated myocyte (Fig. 7c,d)"),
+ ("GSE63887","Väremo 2017","myotubes","in vitro, baseline samples of the same study","none (0 h)",6,"NGT, non-obese","completes the 24 donors of GSE81965"),
+ ("GSE130646","Rubenstein 2020","muscle (single cell)","reference, mononuclear cells of vastus lateralis","none",4,"healthy donor, four samples","cell-type signature for deconvolution (Fig. 7a)"),
  ("GSE22309","Wu 2007","muscle","paired, within person","hyperinsulinaemic clamp, 4 h",55,"insulin-sensitive / insulin-resistant / T2D","response geometry (Figs. 4, 5)"),
  ("GSE9105","Coletta 2008","muscle","paired, within person","hyperinsulinaemic clamp, 30 and 240 min",12,"healthy, family-history negative","response geometry, time course (Fig. 4)"),
  ("GSE7146","Rome 2007","muscle","paired, within person (two platforms, GPL96 used)","insulin infusion, 2 h",6,"healthy","response geometry (Fig. 4)"),
@@ -67,7 +70,8 @@ df = pd.concat([df, df.accession.apply(probe)], axis=1)
 n_studies = df.study.nunique(); n_acc = df.accession.nunique(); n_part = int(df.participants.sum())
 # participantes unicos: GSE50398 comparte donantes con GSE50244, y GSE182117/182120/182121 son un
 # superserie del mismo estudio; se descuentan para no contar personas dos veces
-overlap = int(df[df.accession.isin(["GSE50398"])].participants.sum())
+# GSE50398 comparte donantes con GSE50244; GSE63887 son muestras basales de los donantes de GSE81965
+overlap = int(df[df.accession.isin(["GSE50398", "GSE63887"])].participants.sum())
 n_unique = n_part - overlap
 paired = df[df.design.str.contains("paired")]
 summary = pd.DataFrame([

@@ -4,6 +4,16 @@
 
 - `docs/EXPLORATION_BIOLOGY.md`: búsqueda sistemática de biología nueva y dianas. Genoma completo, la interacción gen × insulina da 2 genes a FDR < 0.05 (IS vs IR) y 1 (IS vs T2D), con exceso claro de P pequeños (95 frente a 8 esperados): señal distribuida, ninguna diana nominable. Se documentan y descartan tres hipótesis: el eje de empalme CLK1/SRSF (set P = 0.39 y 0.077), la correlación con el alineamiento individual (circular por construcción) y los cuatro genes que "ganan" respuesta (filtro de umbrales, no prueba). Se deja constancia de que el resultado de los genes del reloj es una hipótesis preespecificada, no un hallazgo de cribado.
 
+## v1.1 — the phenomenon is localised to the tissue
+
+`19_tissue_vs_cell.py` responde donde reside la coordinacion, y reorganiza el argumento del articulo.
+
+- **El tipo de fibra no la explica.** Con los marcadores validados contra cadena pesada de miosina, el eje lento-rapido no difiere entre grupos (*P* = 0.83) ni predice el alineamiento (ρ = −0.07); ajustar por el deja el efecto en 0.40 (*P* = 0.002).
+- **El compartimento mononuclear si.** Deconvolucion contra una firma de scRNA-seq de vasto lateral humano (2 876 celulas): ajustar reduce la diferencia de 0.46 a 0.08 (*P* = 0.49), mientras que el mismo numero de covariables aleatorias la deja en 0.44 (*P* = 0.002). El ajuste usa covariables centradas y log-ratio centrado, porque sin centrar se resta un vector casi constante y se destruye el alineamiento por construccion.
+- **El miocito aislado no se coordina.** GSE81965 + GSE63887: 24 donantes, insulina 100 nM, 0–2 h. Coherencia maxima 0.27 frente a 0.77 en tejido, magnitud 2.2 frente a 16, y sin diferencia entre NGT y T2D en ningun tiempo (*P* = 0.31, 0.71, 0.41).
+
+El titulo y la narrativa del manuscrito cambian en consecuencia: la respuesta coordinada a la insulina es una propiedad del tejido organizado, ausente en el miocito en cultivo, y la resistencia a la insulina la degrada.
+
 ## v1.0 — release
 
 Auditoría del código y preparación del repositorio para publicación:

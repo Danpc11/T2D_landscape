@@ -63,3 +63,14 @@ Note on a dataset that looks usable and is not: GSE182121 is the superseries of 
 GSE182117. Its microarray samples are numbered oddly (001, 003, 007 …) and all are labelled Basal.
 The clamp in that study was used to phenotype participants, not as a paired perturbation, so no
 insulin-stimulated biopsies exist to request.
+
+## Inputs for the tissue-versus-cell analysis (step 19)
+
+| File | Used by | Analysis |
+|---|---|---|
+| `GSE81965_raw_counts_GRCh38_p13_NCBI.tsv.gz` + both series matrices (GPL16791, GPL11154) | 19 | primary myotubes from 24 donors, insulin 100 nM at 0.5, 1 and 2 h |
+| `GSE63887_raw_counts_GRCh38_p13_NCBI.tsv.gz` + both series matrices | 19 | the baseline (0 h) samples of the same study, deposited separately; needed to complete the 24 donors |
+| `GSE130646_RAW.tar` (four per-sample count matrices) | 19 | single-cell reference of human vastus lateralis mononuclear cells, used to build the deconvolution signature |
+
+The fibre-type markers are taken from Table 1 of the accompanying publication of GSE130646 and are
+hard-coded in `19_tissue_vs_cell.py`; no extra download is needed for them.

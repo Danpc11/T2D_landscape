@@ -483,3 +483,65 @@ for ang in [0.14, 0, -0.14]: ax.add_patch(FancyArrowPatch((6.3, 2.8), (6.3 + 1.5
 ax.text(2.8, 0.4, "loses direction", ha="center", fontsize=8.5); ax.text(7.9, 0.4, "loses magnitude", ha="center", fontsize=8.5)
 ax.set_title("Summary: each organ fails\nin its own way")
 save(fig, "Fig6_adipose_interventions", L)
+
+# ================= Fig 7: la coordinacion es del tejido, no del miocito =================
+tvc = _opt(f"{RES}/tissue/tissue_vs_cell.tsv")
+if tvc is not None:
+    fig = plt.figure(figsize=(W, 6.6)); gs = fig.add_gridspec(2, 3, left=0.105, right=0.97, top=0.93, bottom=0.08, hspace=0.72, wspace=0.62); L = []
+    sub = lambda a, s: tvc[(tvc.analysis == a) & (tvc.setting == s)]
+    # a: escalera de ajustes por composicion
+    ax = fig.add_subplot(gs[0, 0:2]); L.append((ax, "a"))
+    order = ["unadjusted", "fibre type (slow - fast)", "mononuclear composition", "fibre + mononuclear", "control: random covariates"]
+    lab = ["unadjusted", "fibre type\n(slow − fast)", "mononuclear\ncomposition", "fibre +\nmononuclear", "control:\nrandom covariates"]
+    q = tvc[tvc.analysis == "composition adjustment"].set_index("setting")
+    vals = [float(q.loc[o, "diff_alignment"]) for o in order if o in q.index]
+    pvs = [float(q.loc[o, "p"]) for o in order if o in q.index]
+    cols = [C["IS"], C["IS"], C["grey"], C["grey"], C["IS"]]
+    x = np.arange(len(vals))
+    ax.bar(x, vals, color=cols[:len(vals)], width=0.62)
+    for i_, (v, pv) in enumerate(zip(vals, pvs)): ax.text(i_, v + 0.022, ptxt(pv), ha="center", fontsize=8)
+    ax.axhline(0, color="k", lw=0.8); ax.set_xticks(x); ax.set_xticklabels(lab[:len(vals)], fontsize=8)
+    ax.set_ylabel("difference in alignment\n(sensitive − impaired)"); ax.set_ylim(0, max(vals) * 1.28)
+    ax.set_title("Adjusting for the mononuclear compartment removes the group\ndifference; fibre type and random covariates do not")
+    # b: el eje de fibra no separa grupos ni predice alineamiento
+    ax = fig.add_subplot(gs[0, 2]); L.append((ax, "b"))
+    kw = sub("fibre axis", "group difference (Kruskal)"); co = sub("fibre axis", "correlation with alignment")
+    ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    ax.text(0.5, 0.78, "Fibre type", ha="center", fontsize=10, fontweight="bold")
+    if len(kw): ax.text(0.5, 0.55, f"differs between groups\n{ptxt(float(kw.p.iloc[0]))}", ha="center", fontsize=9)
+    if len(co): ax.text(0.5, 0.26, f"predicts alignment\nρ = {float(co.diff_alignment.iloc[0]):+.2f}, {ptxt(float(co.p.iloc[0]))}", ha="center", fontsize=9)
+    ax.add_patch(plt.Rectangle((0.06, 0.12), 0.88, 0.78, fill=False, lw=0.9, ec=C["grey"]))
+    # c: coherencia en tejido frente a cultivo
+    ax = fig.add_subplot(gs[1, 0]); L.append((ax, "c"))
+    myo = tvc[(tvc.analysis == "myotubes") & tvc.setting.str.contains("coherence")]
+    tis = [("intact muscle,\ninsulin 4 h", 0.77, C["IS"])]
+    bars = tis + [(f"{s.split(' h')[0]} h", float(v), C["grey"]) for s, v in zip(myo[myo.setting.str.contains("NGT")].setting, myo[myo.setting.str.contains("NGT")].diff_alignment)]
+    ax.bar(range(len(bars)), [b[1] for b in bars], color=[b[2] for b in bars], width=0.62)
+    ax.axhline(0, color="k", lw=0.8); ax.set_xticks(range(len(bars)))
+    ax.set_xticklabels(["intact\nmuscle\n4 h"] + [b[0] for b in bars[1:]], fontsize=8)
+    ax.set_ylabel("coherence (LOO), healthy donors"); ax.set_ylim(-0.32, 0.95)
+    ax.annotate("", xy=(0.6, -0.455), xytext=(len(bars) - 0.6, -0.455), arrowprops=dict(arrowstyle="-", color=C["grey"], lw=1), annotation_clip=False)
+    ax.text((len(bars) - 0.0) / 2, -0.50, "myotubes", ha="center", va="top", fontsize=8.5, color=C["grey"], clip_on=False)
+    ax.set_title("Healthy myocytes in culture do not\nanswer insulin in concert")
+    # d: y no difieren entre grupos en ningun tiempo
+    ax = fig.add_subplot(gs[1, 1]); L.append((ax, "d"))
+    dd = tvc[(tvc.analysis == "myotubes") & tvc.setting.str.contains("NGT vs T2D")]
+    tt = [float(s.split(" h")[0]) for s in dd.setting]
+    ax.errorbar(tt, dd.diff_alignment, fmt="o-", color=C["grey"], ms=7, lw=1.4)
+    for t_, v_, p_ in zip(tt, dd.diff_alignment, dd.p):
+        ax.text(t_ + (0.08 if t_ == 0.5 else 0), v_ + 0.07, ptxt(float(p_)), ha="left" if t_ == 0.5 else "center", fontsize=8)
+    ax.axhline(0, color="k", lw=0.8, ls=":")
+    ax.axhline(0.49, color=C["IS"], lw=1.3, ls="--"); ax.text(1.95, 0.52, "intact muscle", color=C["IS"], fontsize=8, ha="right")
+    ax.set_xlabel("hours of insulin"); ax.set_ylabel("difference in alignment\n(NGT − T2D)"); ax.set_xticks(tt); ax.set_ylim(-0.5, 0.72)
+    ax.set_title("No difference between healthy and\ndiabetic donors at any time point")
+    # e: esquema
+    ax = fig.add_subplot(gs[1, 2]); L.append((ax, "e")); ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(0, 10)
+    ax.text(2.6, 9.7, "intact tissue", ha="center", fontsize=9.5, fontweight="bold", color=C["IS"], va="top")
+    ax.text(7.7, 9.7, "isolated myocyte", ha="center", fontsize=9.5, fontweight="bold", color=C["grey"], va="top")
+    for ang in [0.13, 0, -0.13]: ax.add_patch(FancyArrowPatch((1.0, 6.3), (1.0 + 3.0 * np.cos(ang), 6.3 + 2.0 * np.sin(ang)), arrowstyle="->", color=C["IS"], lw=1.5, mutation_scale=9))
+    for ang in [1.3, 0.4, -0.5, -1.2]: ax.add_patch(FancyArrowPatch((6.2, 6.3), (6.2 + 1.5 * np.cos(ang), 6.3 + 1.0 * np.sin(ang)), arrowstyle="->", color=C["grey"], lw=1.5, mutation_scale=9))
+    ax.text(2.6, 3.4, "one shared\ndirection", ha="center", fontsize=8.5)
+    ax.text(7.7, 3.4, "no shared direction,\nin anyone", ha="center", fontsize=8.5)
+    ax.text(5.0, 1.0, "Coordination requires the assembled tissue", ha="center", fontsize=9, style="italic")
+    ax.set_title("Where the coordinated response\nlives")
+    save(fig, "Fig7_tissue_not_cell", L)

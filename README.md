@@ -1,6 +1,6 @@
 # t2d_landscape
 
-Code and documents for the paper *Insulin resistance reduces the directional concentration of the human muscle transcriptional response to insulin* — a reanalysis of 24 public human studies (29 accessions, 1,689 participants) across islet, skeletal muscle, adipose tissue and blood, asking whether the information about insulin sensitivity is in how muscle *is* or in how it *responds*.
+Code and documents for the paper *A coordinated transcriptional response to insulin is a tissue-level property of human skeletal muscle and is lost in insulin resistance* — a reanalysis of 26 public human studies (32 accessions, 1,717 participants) across islet, skeletal muscle, adipose tissue and blood, asking whether the information about insulin sensitivity is in how muscle *is* or in how it *responds*.
 
 ## What the paper shows
 
@@ -8,7 +8,8 @@ Code and documents for the paper *Insulin resistance reduces the directional con
 2. Healthy muscle responds to insulin along a shared direction established over ~4 h, which includes late modulation of clock-output genes (DBP, PER2, NR1D2; pre-specified set of nine).
 3. Insulin-resistant and diabetic muscle show no detectable reduction in magnitude but a loss of directional concentration: per-person alignment falls by 0.49 (*P* = 0.006 within hybridisation batch) and the von Mises–Fisher concentration κ falls from 8.2 to 3.6.
 4. The loss is specific to insulin. In a hierarchical model over 140 participants and four cohorts, impairment reduces κ by 44% under insulin and not at all under acute exercise (interaction *P* = 0.005).
-5. Tissues of one person share transcriptional architecture and position, but this is general rather than metabolic: all 30 GTEx tissue pairs show it, metabolic pairs more strongly. No cohort shows two stable states and there is no monotonic change with glycaemic stage.
+5. **The coordinated response belongs to the tissue, not the myocyte.** Fibre type does not account for it (adjusting leaves the effect at 0.40, *P* = 0.002) but mononuclear composition does (0.46 → 0.08, *P* = 0.49; random covariates leave it at 0.44). And in primary myotubes from 24 donors given 100 nM insulin, coherence never exceeds 0.27 against 0.77 in intact muscle, and does not differ between healthy and diabetic donors at any time point.
+6. Tissues of one person share transcriptional architecture and position, but this is general rather than metabolic: all 30 GTEx tissue pairs show it, metabolic pairs more strongly. No cohort shows two stable states and there is no monotonic change with glycaemic stage.
 
 ## Repository
 
@@ -42,7 +43,7 @@ python/analyses/        01 cohorts · 02 landscape replication · 03a-c GTEx · 
                         11 exercise specificity · 12 confounding and power · 13 cohort inventory ·
                         14 sheaf across organ sets (specificity control) · 15 discovery sheaf by stage ·
                         16 per-person alignment (primary analysis) · 17 von Mises-Fisher model ·
-                        18 hierarchical vMF across cohorts
+                        18 hierarchical vMF across cohorts · 19 tissue versus cell (composition and myotubes)
 python/simulation/      synthetic validations and power
 data/README.md          every input file and where to download it
 ```
