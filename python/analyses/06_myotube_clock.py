@@ -32,7 +32,9 @@ for gene in genes:
         for ind in meta[meta.dis == dis].ind.unique():
             a = meta[(meta.dis == dis) & (meta.ind == ind) & (meta.trt == "CTL")]; b = meta[(meta.dis == dis) & (meta.ind == ind) & (meta.trt == "HGI")]; tt = sorted(set(a.t) & set(b.t))
             if len(tt) >= 3: d.append(np.mean([X.loc[gene, b[b.t == t_].col.iloc[0]] - X.loc[gene, a[a.t == t_].col.iloc[0]] for t_ in tt]))
-        d = np.array(d); rec[f"dHGI_{dis}"] = d.mean()   # HGI = glucosa alta + insulina; rec[f"t_{dis}"] = d.mean() / (d.std(ddof=1) / np.sqrt(len(d)) + 1e-9)
+        d = np.array(d)
+        rec[f"dHGI_{dis}"] = d.mean()          # HGI = glucosa alta + insulina (el diseno no aisla la insulina)
+        rec[f"t_{dis}"] = d.mean() / (d.std(ddof=1) / np.sqrt(len(d)) + 1e-9)
         A = []
         for ind in meta[meta.dis == dis].ind.unique():
             s = meta[(meta.dis == dis) & (meta.ind == ind) & (meta.trt == "CTL")].sort_values("t")
@@ -41,3 +43,10 @@ for gene in genes:
         rec[f"amp_{dis}"] = np.mean(A); rec[f"amp_{dis}_sd"] = np.std(A)
     rows.append(rec)
 df = pd.DataFrame(rows).set_index("gene"); df.to_csv(f"{OUT}/GSE182117_clock_HGI_and_amplitude.tsv", sep="\t"); print(df.round(2).to_string())
+# amplitud circadiana: comparacion pareada POR GEN entre donantes NGT y T2D
+clock = [g for g in ["DBP", "TEF", "HLF", "PER1", "PER2", "PER3", "NR1D1", "NR1D2", "BHLHE40"] if g in df.index]
+w = stats.wilcoxon(df.loc[clock, "amp_NGT"], df.loc[clock, "amp_T2D"])
+amp = pd.DataFrame([dict(genes=len(clock), amp_NGT=df.loc[clock, "amp_NGT"].mean(), amp_T2D=df.loc[clock, "amp_T2D"].mean(),
+                         ratio=df.loc[clock, "amp_T2D"].mean() / df.loc[clock, "amp_NGT"].mean(),
+                         test="Wilcoxon signed-rank across clock genes", statistic=float(w.statistic), p=float(w.pvalue))])
+amp.to_csv(f"{OUT}/clock_amplitude_test.tsv", sep="\t", index=False); print(); print(amp.round(3).to_string(index=False))

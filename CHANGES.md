@@ -1,5 +1,25 @@
 # Registro de cambios
 
+## v9.19 — ejecución única (punto 2 del revisor)
+
+Todo el pipeline corrido de una sola vez sobre el mismo `data/raw`; `results_final/` y las figuras salen de esa corrida. Cambios en cifras respecto de versiones anteriores:
+
+| Cantidad | Antes | Ahora | Causa |
+|---|---|---|---|
+| z del haz GTEx | −26 | **−29.7** | 200 permutaciones reales (antes 100, y el histograma era sintético) |
+| Genes a *P* < 0.01 en reposo vs M | 14 | **231** (215 esperados) | correlación parcial: ahora se residualiza también el valor M |
+| DE islote GSE164416 (FDR < 0.1) | 1 079 | **1 284** | Welch |
+| DE islote GSE50244 | 451 | **45** | Welch |
+| DE islote GSE159984 | 11 | **0** | Welch |
+| DE músculo GSE25462 | 2 | **0** | Welch |
+| DE adiposo METSIM | 7 332 | **6 930** | Welch |
+| Coherencia IS − IR, P | 0.007 | **0.005** | 2 000 permutaciones fijas |
+| Coherencia IS − T2D, P | 0.037 | **0.040** | idem |
+| Amplitud del reloj en miotubos | "~30%, P ≈ 0.15 Mann-Whitney" | **ratio 0.71, Wilcoxon pareado por gen P = 0.008** | prueba correcta para datos pareados |
+| Sangre → tejido R² | 0.296 / 0.233 / 0.228 | **0.279 / 0.229 / 0.217** | sin fuga en la validación cruzada |
+
+Correcciones de código en esta ronda: `09` declara el contraste de cada cohorte en lugar de elegirlo automáticamente y añade GSE159984 leyendo la matriz de NCBI; `06` recupera la columna `t_` que un comentario había borrado y escribe `clock_amplitude_test.tsv`; `13` tolera series matrix sin comprimir.
+
 ## v9.18 — correcciones de la revisión editorial
 
 - **Fig 1f con el nulo real**: `03b` exporta las 200 permutaciones (`sheaf_null_draws.tsv`) y la figura las grafica; z pasa de −26 (100 permutaciones) a **−29.7** (200).

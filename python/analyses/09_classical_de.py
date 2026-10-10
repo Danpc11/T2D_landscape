@@ -16,15 +16,48 @@ SETS = {"immediate-early TFs": ["FOS", "FOSB", "JUN", "JUNB", "EGR1", "EGR2", "E
         "inflammation / complement": ["C1QA", "C1QB", "C3AR1", "ITGB2", "IL1R1", "IL1RL1", "TNF", "CCL2", "STAT3", "S100A4", "LSP1", "HLA-DOA"],
         "ECM": ["COL1A1", "COL1A2", "COL3A1", "COL4A1", "COL6A1", "COL6A2", "LTBP4", "FN1", "SPARC", "LAMA2"],
         "lipid / adipogenesis": ["PPARG", "ADIPOQ", "LEP", "FASN", "SCD", "CD36", "LPL", "PLIN1", "PLIN2", "CIDEC"]}
+# El contraste de cada cohorte se declara aqui; de otro modo una eleccion automatica podria
+# convertir una perturbacion en una comparacion de diagnostico mal rotulada.
+CONTRAST = {"GSE164416": ("ND", "T2D"), "GSE50244": ("ND", "T2D"), "GSE159984": ("ND", "T2D"),
+            "GSE25462": ("ND", "T2D"), "METSIM": ("normal", "obese")}
 rows, setrows = [], []
+RAW = os.environ.get("T2D_RAW", "data/raw")
+def load_gse159984():
+    """GSE159984 no pasa por el paso 01: se lee la matriz de conteos de NCBI y se toman solo las
+    muestras de donante en reposo (no diabeticos y T2D), excluyendo los islotes perturbados ex vivo."""
+    import gzip
+    with gzip.open(f"{RAW}/GSE159984-GPL16791_series_matrix.txt.gz", "rt", errors="ignore") as fh:
+        for l in fh:
+            if l.startswith("!Sample_geo_accession"): g1 = [x.strip('"') for x in l.rstrip().split("\t")[1:]]
+            if l.startswith("!Sample_title"): t1 = [x.strip('"') for x in l.rstrip().split("\t")[1:]]
+    with gzip.open(f"{RAW}/GSE159984-GPL9115_series_matrix.txt.gz", "rt", errors="ignore") as fh:
+        for l in fh:
+            if l.startswith("!Sample_geo_accession"): g2 = [x.strip('"') for x in l.rstrip().split("\t")[1:]]
+            if l.startswith("!Sample_title"): t2 = [x.strip('"') for x in l.rstrip().split("\t")[1:]]
+    pm = pd.DataFrame({"gsm": g1 + g2, "title": t1 + t2})
+    pm["condition"] = np.where(pm.title.str.contains("type 2 diabetic donor"), "T2D",
+                        np.where(pm.title.str.contains("non-diabetic donor"), "ND", None))
+    pm = pm[pm.condition.notna()].rename(columns={"gsm": ".sample_id"})
+    cnt = pd.read_csv(f"{RAW}/GSE159984_raw_counts_GRCh38_p13_NCBI.tsv.gz", sep="\t", index_col=0)
+    an = pd.read_csv(f"{RAW}/Human_GRCh38_p13_annot.tsv.gz", sep="\t", index_col=0, usecols=["GeneID", "Symbol"])
+    cnt.index = an.Symbol.reindex(cnt.index).values; cnt = cnt[pd.notna(cnt.index)].groupby(level=0).sum()
+    pm = pm[pm[".sample_id"].isin(cnt.columns)]
+    X = np.log2(cnt[pm[".sample_id"]] / cnt[pm[".sample_id"]].sum(0) * 1e6 + 1)
+    return X[(X > 1).mean(axis=1) > 0.5], pm[[".sample_id", "condition"]]
 for acc, tis in [("GSE164416", "islet"), ("GSE50244", "islet"), ("GSE159984", "islet"), ("GSE25462", "muscle"), ("METSIM", "adipose")]:
-    d = f"{E}/{acc}"
-    if not os.path.exists(f"{d}/{acc}_expr.tsv"): print("skip", acc); continue
-    e = pd.read_csv(f"{d}/{acc}_expr.tsv", sep="\t", index_col=0); p = pd.read_csv(f"{d}/{acc}_pheno.tsv", sep="\t", dtype={".sample_id": str})
+    if acc == "GSE159984":
+        try: e, p = load_gse159984()
+        except FileNotFoundError as ex: print("skip GSE159984:", ex); continue
+    else:
+        d = f"{E}/{acc}"
+        if not os.path.exists(f"{d}/{acc}_expr.tsv"): print("skip", acc); continue
+        e = pd.read_csv(f"{d}/{acc}_expr.tsv", sep="\t", index_col=0); p = pd.read_csv(f"{d}/{acc}_pheno.tsv", sep="\t", dtype={".sample_id": str})
     e = e[p[".sample_id"]]; cond = p.condition.values; lv = list(pd.unique(cond))
-    hi = "T2D" if "T2D" in lv else ("obese" if "obese" in lv else lv[-1]); lo = "ND" if "ND" in lv else ("normal" if "normal" in lv else lv[0])
+    lo, hi = CONTRAST[acc]            # contraste fijado por cohorte: nunca se elige automaticamente
+    if lo not in lv or hi not in lv: print(f"  {acc}: faltan grupos {lo}/{hi} en {lv}, se omite"); continue
     A = e.loc[:, cond == lo].to_numpy(); B = e.loc[:, cond == hi].to_numpy()
-    t, pv = stats.ttest_ind(B, A, axis=1, equal_var=False)   # Welch; lfc = B.mean(1) - A.mean(1); fdr = R.bh(pv)
+    t, pv = stats.ttest_ind(B, A, axis=1, equal_var=False)   # Welch
+    lfc = B.mean(1) - A.mean(1); fdr = R.bh(pv)
     pd.DataFrame({"gene": e.index, "logFC": lfc, "t": t, "p": pv, "fdr": fdr}).to_csv(f"{OUT}/de_{acc}.tsv", sep="\t", index=False)
     rows.append(dict(acc=acc, tissue=tis, contrast=f"{hi} vs {lo}", n_lo=int((cond == lo).sum()), n_hi=int((cond == hi).sum()), n_genes=len(e), n_fdr10=int((fdr < 0.1).sum()), n_p01=int((pv < 0.01).sum()), expected_p01=int(0.01 * len(e))))
     tt = pd.Series(np.abs(t), index=e.index)

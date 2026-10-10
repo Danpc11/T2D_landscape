@@ -49,7 +49,12 @@ def probe(acc):
     if not hits: return pd.Series({"platform": "", "samples": np.nan, "series_matrix_found": False})
     plat, n = "", np.nan
     for h in hits:
-        with gzip.open(h, "rt", errors="ignore") as fh:
+        op = gzip.open if h.endswith(".gz") else open
+        try:
+            fh = op(h, "rt", errors="ignore")
+        except OSError:
+            continue
+        with fh:
             for l in fh:
                 if l.startswith("!Sample_platform_id") and not plat:
                     plat = sorted(set(x.strip('"') for x in l.rstrip().split("\t")[1:]))[0]
