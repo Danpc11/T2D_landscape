@@ -11,7 +11,17 @@ ph=pd.read_csv(f"{U}/GTEx_Analysis_v11_Annotations_SubjectPhenotypesDS.txt",sep=
 tissues={"muscle":"muscle_skeletal","adipose":"adipose_subcutaneous","adipose_visceral":"adipose_visceral_omentum",
          "pancreas":"pancreas","liver":"liver","blood":"whole_blood",
          "adrenal":"adrenal_gland","kidney_cortex":"kidney_cortex","kidney_medulla":"kidney_medulla",
-         "stomach":"stomach","ileum":"small_intestine_terminal_ileum"}
+         # eje digestivo: mucosa (absortiva/enteroendocrina) frente a muscular (musculo liso + plexo enterico)
+         "stomach":"stomach","ileum":"small_intestine_terminal_ileum",
+         "colon_transverse":"colon_transverse","colon_sigmoid":"colon_sigmoid",
+         "esophagus_mucosa":"esophagus_mucosa","esophagus_muscularis":"esophagus_muscularis",
+         "esophagus_gej":"esophagus_gastroesophageal_junction",
+         # sistema nervioso: nervio periferico, medula, hipotalamo y regiones de control
+         "nerve_tibial":"nerve_tibial","spinal_cord":"brain_spinal_cord_cervical_c-1",
+         "hypothalamus":"brain_hypothalamus","nucleus_accumbens":"brain_nucleus_accumbens_basal_ganglia",
+         "caudate":"brain_caudate_basal_ganglia","putamen":"brain_putamen_basal_ganglia",
+         "cortex":"brain_cortex","frontal_cortex":"brain_frontal_cortex_ba9","hippocampus":"brain_hippocampus",
+         "breast":"breast_mammary_tissue"}
 def load(t):
     g=pd.read_csv(f"{U}/gene_reads_adult_gtex_v11_{t}.gct.gz",sep="\t",skiprows=2)
     g=g[~g.Description.str.startswith(("MT-","RPL","RPS"))]

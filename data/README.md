@@ -81,3 +81,12 @@ The fibre-type markers are the twenty per type of Table 1 of Rubenstein et al. 2
 RNA-seq of pooled single fibres (deposited separately as GSE130977) and validated against myosin
 heavy-chain determination by SDS-PAGE. We use the published list, not that dataset, so no extra
 download is needed; the markers are hard-coded in `19_tissue_vs_cell.py`.
+
+## GTEx tissues for the exploratory coupling map (step 20)
+
+`gene_reads_adult_gtex_v11_<tissue>.gct.gz` for: colon_transverse, colon_sigmoid, esophagus_mucosa,
+esophagus_muscularis, esophagus_gastroesophageal_junction, nerve_tibial, brain_spinal_cord_cervical_c-1,
+brain_hypothalamus, brain_nucleus_accumbens_basal_ganglia, brain_caudate_basal_ganglia,
+brain_putamen_basal_ganglia, brain_cortex, brain_frontal_cortex_ba9, brain_hippocampus,
+breast_mammary_tissue. These are needed only by step 20, which is exploratory; steps 03a–03c and 14
+run with the eleven tissues listed above.

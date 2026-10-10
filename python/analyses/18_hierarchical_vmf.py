@@ -99,24 +99,44 @@ print(f"\ntotal: {len(df)} participantes, {df.dataset.nunique()} cohortes")
 # ---------------- modelo jerarquico ----------------
 UCOLS = [c for c in df.columns if c.startswith("u")]
 def logC(k, d): return (d / 2 - 1) * np.log(k) - (d / 2) * np.log(2 * np.pi) - np.log(special.ive(d / 2 - 1, k)) - k
-def fit(df, with_effect=True, with_interaction=False):
-    """direcciones medias por cohorte (cerradas), log kappa = b0 + b_dataset + b1*impaired"""
+def fit(df, with_effect=True, with_interaction=False, joint=True, iters=25):
+    """Ajuste conjunto de las direcciones medias por cohorte y de la concentracion.
+
+    log kappa = b0 + b_cohorte + b1*deterioro + b2*(deterioro x ejercicio).
+
+    La direccion media de maxima verosimilitud de una von Mises-Fisher es el vector resultante
+    normalizado SOLO si todos los individuos comparten kappa. Aqui kappa varia dentro de cada
+    cohorte segun el deterioro, de modo que el estimador conjunto de mu es la media PONDERADA por
+    kappa. Se resuelve alternando: dadas las kappa actuales se recalculan las mu ponderadas, y
+    dadas las mu se reoptimizan los coeficientes, hasta convergencia. joint=False reproduce el
+    estimador en dos pasos (mu fijada al resultante no ponderado) y se conserva para comparacion.
+    """
     ds = sorted(df.dataset.unique()); d = len(UCOLS)
     U = df[UCOLS].to_numpy(); imp = df.impaired.to_numpy(float); exo = (df.stimulus == "exercise").to_numpy(float)
-    idx = {k: (df.dataset == k).to_numpy() for k in ds}
-    mus = {k: (lambda m: m / np.linalg.norm(m))(U[idx[k]].sum(0)) for k in ds}
-    cos = np.array([U[i] @ mus[df.dataset.iloc[i]] for i in range(len(df))])
-    def nll(par):
-        b0 = par[0]; bds = dict(zip(ds[1:], par[1:len(ds)]))
+    dsv = np.array([ds.index(x) for x in df.dataset])
+    mus = np.array([(lambda m: m / np.linalg.norm(m))(U[dsv == i].sum(0)) for i in range(len(ds))])
+    def nll(par, mus=None):
+        cos = np.einsum("ij,ij->i", U, mus[dsv])
+        b0 = par[0]; bd = np.r_[0.0, par[1:len(ds)]]
         b1 = par[len(ds)] if with_effect else 0.0
         b2 = par[len(ds) + 1] if with_interaction else 0.0
-        lk = b0 + np.array([bds.get(df.dataset.iloc[i], 0.0) for i in range(len(df))]) + b1 * imp + b2 * imp * exo
-        k = np.exp(np.clip(lk, -5, 6))
+        k = np.exp(np.clip(b0 + bd[dsv] + b1 * imp + b2 * imp * exo, -5, 6))
         return -np.sum(logC(k, d) + k * cos)
     x0 = np.r_[np.log(4.0), np.zeros(len(ds) - 1)]
     if with_effect: x0 = np.r_[x0, -0.5]
     if with_interaction: x0 = np.r_[x0, 0.5]
-    r = optimize.minimize(nll, x0, method="Nelder-Mead", options=dict(maxiter=20000, xatol=1e-6, fatol=1e-6))
+    opt = dict(maxiter=40000, xatol=1e-9, fatol=1e-9)
+    r = optimize.minimize(lambda p: nll(p, mus), x0, method="Nelder-Mead", options=opt)
+    if joint:
+        for _ in range(iters):
+            b0 = r.x[0]; bd = np.r_[0.0, r.x[1:len(ds)]]
+            b1 = r.x[len(ds)] if with_effect else 0.0
+            b2 = r.x[len(ds) + 1] if with_interaction else 0.0
+            k = np.exp(np.clip(b0 + bd[dsv] + b1 * imp + b2 * imp * exo, -5, 6))
+            mus = np.array([(lambda m: m / np.linalg.norm(m))((U[dsv == i] * k[dsv == i, None]).sum(0)) for i in range(len(ds))])
+            r2 = optimize.minimize(lambda p: nll(p, mus), r.x, method="Nelder-Mead", options=opt)
+            if abs(r2.fun - r.fun) < 1e-8: r = r2; break
+            r = r2
     return r, ds
 r0, ds = fit(df, False, False); r1, _ = fit(df, True, False)
 has_ex = bool((df.stimulus == "exercise").any())

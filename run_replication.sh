@@ -27,5 +27,6 @@ step "17 von Mises-Fisher model"        python python/analyses/17_vmf_model.py
 step "18 hierarchical vMF (pooled)"     python python/analyses/18_hierarchical_vmf.py
 step "19a cell-type signature"          python python/analyses/19a_build_celltype_signature.py
 step "19 tissue vs cell"                python python/analyses/19_tissue_vs_cell.py
+step "20 tissue coupling map (expl.)"   python python/analyses/20_tissue_coupling_map.py
 step "figures"                          python python/figures/make_figures.py
 echo "done: results/{response,resting,myotubes,gtex,replication,supplementary,audit,de} and figures/"

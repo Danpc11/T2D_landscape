@@ -1,5 +1,6 @@
 """Geometry of within-person responses: embedding, displacement, leave-one-out coherence, nulls."""
-import numpy as np, pandas as pd
+import numpy as np
+import pandas as pd, pandas as pd
 
 def embed(expr, n_genes=800, r=5, expr_floor_pct=30):
     """expr: genes x muestras (log). Devuelve DataFrame muestras x r (PCA de los n_genes mas variables)."""
@@ -132,12 +133,26 @@ def alignment_per_person(D, is_reference):
         r = D[k].mean(0); out[i] = float(np.dot(D[i], r) / (np.linalg.norm(D[i]) * np.linalg.norm(r) + 1e-12))
     return out
 
-def perm_test_alignment(D, labels, rng, B=3000):
+def perm_test_alignment(D, labels, rng, B=3000, strata=None):
     """Permutacion del alineamiento medio entre grupos. En cada permutacion se RE-ESTIMA la
     direccion de referencia, porque esa direccion la define el grupo de referencia y, si no se
-    reestimara, el nulo seria optimista. labels: 0 = referencia, 1 = grupo comparado."""
+    reestimara, el nulo seria optimista. labels: 0 = referencia, 1 = grupo comparado.
+
+    strata: etiqueta por individuo (p. ej. el lote de hibridacion). Si se da, las etiquetas se
+    permutan DENTRO de cada estrato, de modo que el nulo conserva la estructura de lote en lugar
+    de destruirla. Restringir el analisis a un subconjunto equilibrado es una pregunta distinta y
+    mas conservadora: elimina individuos en lugar de condicionar sobre el lote.
+    """
     labels = np.asarray(labels)
     def stat(lb):
         a = alignment_per_person(D, lb == 0); return np.nanmean(a[lb == 0]) - np.nanmean(a[lb == 1])
-    obs = stat(labels); null = np.array([stat(rng.permutation(labels)) for _ in range(B)])
+    if strata is None:
+        draw = lambda: rng.permutation(labels)
+    else:
+        strata = np.asarray(strata); blocks = [np.where(strata == s)[0] for s in pd.unique(strata)]
+        def draw():
+            lb = labels.copy()
+            for b in blocks: lb[b] = rng.permutation(labels[b])
+            return lb
+    obs = stat(labels); null = np.array([stat(draw()) for _ in range(B)])
     return obs, (np.sum(np.abs(null) >= abs(obs)) + 1) / (B + 1), float(null.mean())

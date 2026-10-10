@@ -45,7 +45,8 @@ python/analyses/        01 cohorts · 02 landscape replication · 03a-c GTEx · 
                         14 sheaf across organ sets (specificity control) · 15 discovery sheaf by stage ·
                         16 per-person alignment (primary analysis) · 17 von Mises-Fisher model ·
                         18 hierarchical vMF across cohorts · 19a cell-type signature from scRNA-seq ·
-                        19 tissue versus cell (composition and myotubes)
+                        19 tissue versus cell (composition and myotubes) ·
+                        20 tissue coupling map (exploratory, not used in the manuscript)
 python/simulation/      synthetic validations and power
 data/README.md          every input file and where to download it
 ```
@@ -78,6 +79,23 @@ pipeline can run against directories elsewhere without editing code:
 `T2D_RAW` (downloaded inputs, default `data/raw`), `T2D_EXPORT` (cohorts prepared by step 01,
 default `data/export`), `T2D_RES` / `T2D_OUT` (results, default `results/...`) and `T2D_FIG`
 (figures, default `figures`).
+
+## Exploratory work not used in the manuscript
+
+`20_tissue_coupling_map.py` extends the shared-individual-position analysis from three metabolic
+organs to 24 GTEx tissues, asking whether the digestive axis and the nervous system take part. Two
+controls are mandatory and are implemented there, because both produce spurious rankings: the number
+of donors, on which the null depends, and compositional similarity, which makes skeletal muscle
+resemble any tissue containing smooth muscle.
+
+After both adjustments the ordering is peripheral nerve +0.09, metabolic organs +0.04, smooth muscle
++0.03, gut 0.00 and central nervous system −0.03, and nothing reaches significance (CNS versus the
+rest, *P* = 0.13). Nerve is a single tissue, and GTEx tibial nerve is rich in adipose and perineural
+connective tissue. The solid observation is negative: the CNS sits consistently below the periphery,
+with hippocampus last, so the shared individual position is a property of peripheral tissues and does
+not extend to the brain. Testing a neural or enteric contribution needs intervention designs
+(autonomic blockade during a clamp; a mixed meal versus intravenous insulin in the same people with
+paired biopsies), not correlations between tissues of post-mortem donors.
 
 ## Status
 

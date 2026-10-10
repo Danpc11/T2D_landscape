@@ -11,6 +11,28 @@ demasiado grandes para la suspension celular. Las proporciones estimadas son por
 compartimento mononuclear ENTRE SI, no respecto a las fibras. El eje de tipo de fibra se trata
 aparte en el paso 19, con los marcadores publicados de ese mismo trabajo.
 
+Procedencia de la referencia: GSE130646 son CUATRO PREPARACIONES DE UNA SOLA BIOPSIA de un unico
+donante varon joven, no cuatro donantes. La firma deriva por tanto de un individuo, lo que acota
+cuanta variacion entre personas puede capturar la deconvolucion.
+
+Pasos y parametros, en orden: QC por celula (>=200 genes detectados, <20% de lecturas
+mitocondriales) y por gen (>=5 celulas); normalizacion a 10 000 cuentas y log1p; 2 000 genes
+variables con el donante como bloque; escalado a |z|<=10; 30 componentes principales; grafo de 15
+vecinos; Leiden (resolucion 0.6, algoritmo igraph, 2 iteraciones). La anotacion asigna a cada
+cluster el tipo cuyo conjunto de marcadores canonicos tiene mayor expresion media. La firma retiene
+los genes con expresion maxima >0.3 y especificidad >0.5 (maximo sobre suma entre tipos), y de ellos
+los 80 mas altos por tipo. Las proporciones se estiman por minimos cuadrados no negativos y se
+normalizan a suma uno.
+
+Manejo de ceros antes del log-ratio: las proporciones que salen de minimos cuadrados no negativos
+pueden ser exactamente cero, de modo que el paso 19 suma una constante de 1e-6 antes del logaritmo
+y centra el log-ratio (CLR) sobre los tipos celulares. La constante es cuatro ordenes de magnitud
+menor que la proporcion no nula mas pequena observada, y el resultado es insensible a su valor
+entre 1e-4 y 1e-8 (comprobado en el propio paso 19).
+
+Versiones: las fijadas en requirements.txt (scanpy, anndata, igraph y leidenalg solo hacen falta
+aqui). Semilla 0 en PCA, vecinos y Leiden.
+
 Entrada: data/raw/GSE130646_RAW.tar (o los cuatro GSM*_Counts.csv.gz ya extraidos)
 Salida: results/response/deconvolution_proportions.tsv, celltype_signature.tsv
 """

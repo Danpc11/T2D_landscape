@@ -4,6 +4,20 @@
 
 - `docs/EXPLORATION_BIOLOGY.md`: búsqueda sistemática de biología nueva y dianas. Genoma completo, la interacción gen × insulina da 2 genes a FDR < 0.05 (IS vs IR) y 1 (IS vs T2D), con exceso claro de P pequeños (95 frente a 8 esperados): señal distribuida, ninguna diana nominable. Se documentan y descartan tres hipótesis: el eje de empalme CLK1/SRSF (set P = 0.39 y 0.077), la correlación con el alineamiento individual (circular por construcción) y los cuatro genes que "ganan" respuesta (filtro de umbrales, no prueba). Se deja constancia de que el resultado de los genes del reloj es una hipótesis preespecificada, no un hallazgo de cribado.
 
+## v1.3 — mapa de acoplamiento entre tejidos (exploratorio)
+
+`20_tissue_coupling_map.py` y `03a` ampliado a 26 tejidos de GTEx (eje digestivo completo, nervio tibial, medula, hipotalamo y seis regiones cerebrales). Pregunta si el intestino y el sistema nervioso participan del estado compartido entre tejidos de una misma persona. No entra en el articulo: tras ajustar por numero de donantes y por similitud de composicion nada alcanza significacion. Lo unico solido es negativo, y conviene conservarlo: el SNC queda consistentemente por debajo de los tejidos perifericos, de modo que el fenomeno no se extiende al cerebro. El script documenta ambos controles porque sin ellos el ranking es espurio.
+
+## v1.3 — revision previa al envio
+
+- **Modelo jerarquico, estimacion conjunta.** La direccion media de una von Mises-Fisher solo es el resultante normalizado si todos comparten kappa; como kappa varia con el deterioro dentro de cada cohorte, el estimador conjunto alterna entre direcciones ponderadas por kappa y reoptimizacion de los coeficientes. b1 pasa de −0.585 a **−0.971** y la interaccion de *P* = 0.0049 a **0.0004**. Pasa a ser el resultado central del articulo.
+- **Permutacion estratificada por lote** (`strata=` en `perm_test_alignment`). En GSE22309 run y grupo estan casi confundidos: cuatro de siete corridas contienen un solo grupo y solo 24 de 55 parejas estan en corridas mixtas. Con permutacion libre *P* = 0.0007, restringiendo a mismo run *P* = 0.008, con pseudo-grupos por lote nulo, y estratificando *P* = 0.090. Se reportan las cuatro.
+- **Control aleatorio estable**: promedio de diez extracciones con generador propio (+0.381, *P* mediano 0.003) en lugar de una sola extraccion dependiente del estado del generador.
+- **Pseudoconteo del log-ratio** documentado y comprobado: 1e-6 por defecto, resultado identico entre 1e-4 y 1e-8.
+- **Inventario corregido**: GSE130646 son cuatro preparaciones de UNA biopsia de un solo donante, no cuatro donantes; GSE63887 cuenta cero participantes por ser las basales de GSE81965; el total se describe como suma sobre cohortes, no como recuento de individuos unicos por identificador.
+- **Procedencia de la firma**: QC, agrupamiento, anotacion y seleccion de marcadores documentados paso a paso en `19a`, con las versiones fijadas en `requirements.txt`.
+- **Afirmacion del cultivo rebajada** en titulo, resumen y discusion: los miotubos acotan donde estudiar la respuesta coordinada, no demuestran que exija tejido intacto.
+
 ## v1.2 — deconvolucion reproducible
 
 `19a_build_celltype_signature.py` construye la firma de tipos celulares desde GSE130646 (Rubenstein et al. 2020, Sci Rep 10:229) y desconvoluciona las biopsias basales, de modo que el panel 7a ya no depende de un analisis hecho fuera del repositorio. Las cifras se reproducen exactamente: 0.463 sin ajustar, 0.399 ajustando por tipo de fibra, 0.082 por composicion mononuclear y 0.443 con covariables aleatorias. Se fijan scanpy, igraph y leidenalg en `requirements.txt`, necesarios solo para este paso, y se documenta en `data/README.md` que el scRNA-seq de musculo no captura mionucleos.

@@ -10,8 +10,11 @@ Tres analisis que localizan el fenomeno.
    conserva; ajustar sin centrar restaria un vector casi constante y destruiria el alineamiento por
    construccion. Las proporciones se transforman a log-ratio centrado porque suman uno. El control
    es el mismo ajuste con covariables aleatorias.
-3. Miotubos. Miocitos puros de 24 donantes con insulina aguda: si la coordinacion fuera celular,
-   deberia aparecer ahi.
+3. Miotubos. Miocitos de 24 donantes con insulina aguda (GSE81965 + GSE63887). El cultivo difiere
+   del tejido en muchas cosas ademas de la organizacion: semanas de proliferacion y
+   desdiferenciacion, ausencia de matriz y de carga mecanica, y una ventana de 2 h frente a las 4 h
+   en que la coordinacion se establece in vivo. El resultado acota donde buscar, no demuestra por
+   si solo que la coordinacion exija tejido intacto.
 Salida: results/tissue/*.tsv
 """
 import os, sys, gzip, numpy as np, pandas as pd, warnings; warnings.filterwarnings("ignore")
@@ -45,15 +48,34 @@ prop_file = f"{OUT}/../response/deconvolution_proportions.tsv"
 P = pd.read_csv(prop_file, sep="\t").drop(columns=["group"], errors="ignore") if os.path.exists(prop_file) else None
 settings = [("unadjusted", None), ("fibre type (slow - fast)", fibre.reshape(-1, 1))]
 if P is not None:
-    L = np.log(P.to_numpy() + 1e-6); clr = (L - L.mean(1, keepdims=True))[:, :-1]
-    settings += [("mononuclear composition", clr), ("fibre + mononuclear", np.column_stack([fibre, clr])),
-                 ("control: random covariates", rng.normal(size=(len(D), clr.shape[1] + 1)))]
+    # las proporciones de NNLS pueden ser cero: pseudoconteo antes del log-ratio centrado.
+    # Se comprueba que el resultado no dependa de su valor.
+    def clr_of(eps):
+        L = np.log(P.to_numpy() + eps); return (L - L.mean(1, keepdims=True))[:, :-1]
+    clr = clr_of(1e-6)
+    settings += [("mononuclear composition", clr), ("fibre + mononuclear", np.column_stack([fibre, clr]))]
 print("efecto tras ajustar por composicion (GSE22309):")
 for name, C in settings:
     Dx = D if C is None else adjust(D, C)
     o, pv, _ = R.perm_test_alignment(Dx, lb, rng, B=2000)
     rows.append(dict(analysis="composition adjustment", setting=name, n=len(D), diff_alignment=o, p=pv))
     print(f"  {name:28s} dif = {o:+.3f}  p = {pv:.4f}")
+if P is not None:
+    # control: el mismo numero de covariables sin relacion con nada. Una sola extraccion depende
+    # del estado del generador, de modo que se promedian varias con su propio generador fijo.
+    crng = np.random.default_rng(12345); ncov = clr.shape[1] + 1; draws = []
+    for _ in range(10):
+        o_, p_, _ = R.perm_test_alignment(adjust(D, crng.normal(size=(len(D), ncov))), lb, crng, B=800)
+        draws.append((o_, p_))
+    o_m = float(np.mean([x[0] for x in draws])); p_med = float(np.median([x[1] for x in draws]))
+    rows.append(dict(analysis="composition adjustment", setting=f"control: {ncov} random covariates (mean of 10 draws)",
+                     n=len(D), diff_alignment=o_m, p=p_med))
+    print(f"  {'control: random covariates':28s} dif = {o_m:+.3f}  p (mediana) = {p_med:.4f}")
+    # sensibilidad al pseudoconteo del log-ratio
+    for eps in (1e-4, 1e-8):
+        o_, p_, _ = R.perm_test_alignment(adjust(D, clr_of(eps)), lb, crng, B=800)
+        rows.append(dict(analysis="pseudocount sensitivity", setting=f"CLR with eps = {eps:g}", n=len(D), diff_alignment=o_, p=p_))
+        print(f"  {('CLR, eps = %g' % eps):28s} dif = {o_:+.3f}  p = {p_:.4f}")
 rows.append(dict(analysis="fibre axis", setting="group difference (Kruskal)", n=len(D),
                  diff_alignment=np.nan, p=stats.kruskal(*[fibre[grp == g] for g in ["IS", "IR", "T2D"]])[1]))
 rows.append(dict(analysis="fibre axis", setting="correlation with alignment", n=len(D),
