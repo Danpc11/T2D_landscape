@@ -8,6 +8,13 @@
 
 `20_tissue_coupling_map.py` y `03a` ampliado a 26 tejidos de GTEx (eje digestivo completo, nervio tibial, medula, hipotalamo y seis regiones cerebrales). Pregunta si el intestino y el sistema nervioso participan del estado compartido entre tejidos de una misma persona. No entra en el articulo: tras ajustar por numero de donantes y por similitud de composicion nada alcanza significacion. Lo unico solido es negativo, y conviene conservarlo: el SNC queda consistentemente por debajo de los tejidos perifericos, de modo que el fenomeno no se extiende al cerebro. El script documenta ambos controles porque sin ellos el ranking es espurio.
 
+## v1.4 — GSE13070 y correccion del sesgo de kappa
+
+- **Cohorte nueva, la mayor disponible.** GSE13070 (Sears 2009, PNAS 106:18745) aporta 68 pares de clamp basales en musculo, con clamp de cinco horas y grupos definidos por Rd medido. Por si sola NO muestra el contraste (dif de alineamiento −0.04, *P* = 0.81) y su grupo de referencia esta poco concentrado (kappa 1.8 frente a 7.3 en GSE22309). Ni la escala logaritmica ni la normalizacion por cuantiles cambian eso.
+- **Sesgo de kappa corregido.** El estimador que invierte A_d sobre Rbar crudo esta sesgado al alza con n pequeno: con kappa = 3 en dimension 5 devuelve 3.48 a n = 18 y 3.17 a n = 50. Como el grupo de referencia es el pequeno en todas las cohortes, el sesgo empujaba en la direccion de la hipotesis. `response.kappa_mle` usa ahora el estimador insesgado de A^2, (Rbar^2 n − 1)/(n − 1); los pasos 17 y 18 lo adoptan y `tests/smoke_test.py` comprueba por simulacion que el valor esperado deja de depender de n.
+- **Modelo conjunto con 208 participantes y 5 cohortes**, con la verosimilitud evaluada sobre Rbar corregido por celda: b1 = −0.716 (kappa × 0.49, IC95% 0.21–0.92), b2 = +1.027, interaccion *P* = 0.0005. Antes de incluir GSE13070 y de corregir el sesgo: b1 = −0.971, b2 = +1.277, *P* = 0.0004.
+- Las tres cohortes de insulina muestran la misma direccion (referencia mas concentrada que el grupo deteriorado) y las dos de ejercicio la contraria, de modo que la interaccion se ve en los parametros por celda sin necesidad del modelo.
+
 ## v1.3 — revision previa al envio
 
 - **Modelo jerarquico, estimacion conjunta.** La direccion media de una von Mises-Fisher solo es el resultante normalizado si todos comparten kappa; como kappa varia con el deterioro dentro de cada cohorte, el estimador conjunto alterna entre direcciones ponderadas por kappa y reoptimizacion de los coeficientes. b1 pasa de −0.585 a **−0.971** y la interaccion de *P* = 0.0049 a **0.0004**. Pasa a ser el resultado central del articulo.

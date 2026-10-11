@@ -15,14 +15,22 @@ OUT = os.environ.get("T2D_OUT", "results/response"); os.makedirs(OUT, exist_ok=T
 def log_norm_const(k, d):
     """log C_d(kappa) usando ive para evitar desbordamiento con kappa grande"""
     return (d / 2 - 1) * np.log(k) - (d / 2) * np.log(2 * np.pi) - np.log(special.ive(d / 2 - 1, k)) - k
-def fit_vmf(U):
+def fit_vmf(U, corrected=True):
+    """kappa con correccion de sesgo de muestra finita (ver response.kappa_mle). Sin ella, los
+    grupos pequenos reciben kappa inflada y en estas cohortes el grupo de referencia es siempre
+    el pequeno, de modo que el sesgo empuja en la direccion de la hipotesis."""
     n, d = U.shape; m = U.sum(0); Rb = np.linalg.norm(m) / n
-    k = optimize.minimize_scalar(lambda x: -n * (log_norm_const(x, d) + x * Rb), bounds=(1e-3, 500), method="bounded").x
-    return dict(mu=m / np.linalg.norm(m), kappa=float(k), Rbar=float(Rb), n=n, loglik=float(n * (log_norm_const(k, d) + k * Rb)))
+    Rc = np.sqrt(max((Rb ** 2 * n - 1) / (n - 1), 1e-9)) if corrected else Rb
+    k = R.kappa_mle(U, corrected=corrected)
+    return dict(mu=m / np.linalg.norm(m), kappa=float(k), Rbar=float(Rb), Rbar_corrected=float(Rc), n=n,
+                loglik=float(n * (log_norm_const(k, d) + k * Rc)))
 def lrt_equal_kappa(UA, UB):
     """H0: ambos grupos comparten kappa (direcciones libres). H1: kappa distinta."""
     d = UA.shape[1]; fa, fb = fit_vmf(UA), fit_vmf(UB)
-    def joint(k): return -sum(len(S) * (log_norm_const(k, d) + k * np.linalg.norm(S.sum(0)) / len(S)) for S in (UA, UB))
+    def rc(S):
+        n_ = len(S); Rb_ = np.linalg.norm(S.sum(0)) / n_
+        return np.sqrt(max((Rb_ ** 2 * n_ - 1) / (n_ - 1), 1e-9))
+    def joint(k): return -sum(len(S) * (log_norm_const(k, d) + k * rc(S)) for S in (UA, UB))
     k0 = optimize.minimize_scalar(joint, bounds=(1e-3, 500), method="bounded").x
     stat = 2 * ((fa["loglik"] + fb["loglik"]) - (-joint(k0)))
     return dict(LR=float(stat), p=float(stats.chi2.sf(stat, 1)), kappa_pooled=float(k0))
@@ -42,8 +50,10 @@ for sub, mask in [("all", np.ones(len(U), bool)), ("sameRun", same)]:
         S = U[mask & (grp == g)]
         if len(S) < 5: continue
         f = fit_vmf(S); bs = [fit_vmf(S[rng.integers(0, len(S), len(S))])["kappa"] for _ in range(400)]
-        fits.append(dict(subset=sub, group=g, n=f["n"], kappa=f["kappa"], kappa_lo=float(np.percentile(bs, 2.5)),
-                         kappa_hi=float(np.percentile(bs, 97.5)), Rbar=f["Rbar"], dim=U.shape[1]))
+        f["kappa_naive"] = fit_vmf(S, corrected=False)["kappa"]
+        fits.append(dict(subset=sub, group=g, n=f["n"], kappa=f["kappa"], kappa_naive=f["kappa_naive"],
+                         kappa_lo=float(np.percentile(bs, 2.5)), kappa_hi=float(np.percentile(bs, 97.5)),
+                         Rbar=f["Rbar"], Rbar_corrected=f["Rbar_corrected"], dim=U.shape[1]))
     for g in ["IR", "T2D"]:
         A = U[mask & (grp == "IS")]; B = U[mask & (grp == g)]
         if len(A) < 5 or len(B) < 5: continue

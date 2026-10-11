@@ -43,6 +43,29 @@ iso = R.isotropic_null(D, rng)
 check("conserva las longitudes", np.allclose(np.linalg.norm(iso, axis=1), np.linalg.norm(D, axis=1)))
 check("destruye la direccion compartida", R.coherence_loo(iso) < 0.4, f"{R.coherence_loo(iso):.3f}")
 
+print("concentracion von Mises-Fisher, correccion de sesgo")
+# con la misma concentracion real, el estimador crudo depende de n y el corregido no
+d_ = 5
+def rvmf(kap, n, rng):
+    b = (-2 * kap + np.sqrt(4 * kap ** 2 + (d_ - 1) ** 2)) / (d_ - 1); x0 = (1 - b) / (1 + b)
+    c = kap * x0 + (d_ - 1) * np.log(1 - x0 ** 2); out = []
+    while len(out) < n:
+        Z = rng.beta((d_ - 1) / 2, (d_ - 1) / 2); W = (1 - (1 + b) * Z) / (1 - (1 - b) * Z)
+        if kap * W + (d_ - 1) * np.log(1 - x0 * W) - c >= np.log(rng.random()):
+            v = rng.normal(size=d_ - 1); v /= np.linalg.norm(v); out.append(np.r_[W, np.sqrt(1 - W ** 2) * v])
+    return np.array(out)
+for ktrue in (3.0, 8.0):
+    a = np.mean([R.kappa_mle(rvmf(ktrue, 18, rng)) for _ in range(120)])
+    b = np.mean([R.kappa_mle(rvmf(ktrue, 50, rng)) for _ in range(120)])
+    an = np.mean([R.kappa_mle(rvmf(ktrue, 18, rng), corrected=False) for _ in range(120)])
+    check(f"insesgada en n a kappa={ktrue:.0f}", abs(a - b) / b < 0.12, f"n18={a:.2f} n50={b:.2f}")
+    check(f"la version cruda infla kappa a n=18 (kappa={ktrue:.0f})", an > a, f"cruda={an:.2f} corregida={a:.2f}")
+def rand_unit(n):
+    V = rng.normal(size=(n, d_)); return V / np.linalg.norm(V, axis=1, keepdims=True)
+k0 = np.mean([R.kappa_mle(rand_unit(18)) for _ in range(200)])
+k0n = np.mean([R.kappa_mle(rand_unit(18), corrected=False) for _ in range(200)])
+check("kappa ~ 0 de media sin direccion compartida", k0 < 0.6, f"corregida {k0:.2f} vs cruda {k0n:.2f}")
+
 print("correccion de Benjamini-Hochberg")
 p = np.r_[np.full(10, 1e-6), rng.uniform(size=990)]
 check("monotona y acotada", np.all(np.diff(R.bh(p)[np.argsort(p)]) >= -1e-12) and R.bh(p).max() <= 1)

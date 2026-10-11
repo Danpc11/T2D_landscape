@@ -98,7 +98,7 @@ def null_coh(gA, gB, B=2000):
         i = rng.permutation(len(allD)); out.append(R.coherence_loo(allD[i[:nA]]) - R.coherence_loo(allD[i[nA:]]))
     return np.array(out)
 def g(ds, gr, col): r = geom[(geom.dataset == ds) & (geom.group == gr)]; return r[col].iloc[0] if len(r) else np.nan
-cols = ["GSE76895", "GSE18732", "GSE27951", "GSE164416", "GSE50244", "GSE50398", "GSE25462", "METSIM"]; labs = ["islet", "muscle", "adipose", "islet, living", "islet, RNA-seq", "islet, array", "muscle", "adipose"]
+cols = ["GSE76895", "GSE18732", "GSE27951", "GSE164416", "GSE50244", "GSE50398", "GSE25462", "METSIM"]; labs = ["islet", "muscle", "adipose", "islet (living)", "islet (seq)", "islet (array)", "muscle", "adipose"]
 rows = {}
 for acc in cols:
     for path in [f"{RES}/replication/{acc}/landscape_summary.tsv", f"{RES}/landscape/landscape_summary.tsv"]:
@@ -137,10 +137,10 @@ if disc is not None:
     x = range(len(disc))
     ax.errorbar(x, disc.null_mean, yerr=1.96 * disc.null_sd, fmt="s", color=C["grey"], ms=6, capsize=3, label="gene-correspondence null")
     ax.errorbar(x, disc.observed, yerr=disc.observed_sd, fmt="o-", color=C["IS"], ms=6, capsize=3, label="observed")
-    ax.set_xticks(list(x)); ax.set_xticklabels([f"{r.stage}\n(n = {int(r.n_per_stage)})" for r in disc.itertuples()], fontsize=7.5)
+    ax.set_xticks(list(x)); ax.set_xticklabels([f"{r.stage}\n(n = {int(r.n_per_stage)})" for r in disc.itertuples()], fontsize=7, rotation=20, ha="center")
     ax.set_ylabel("sheaf energy"); ax.set_xlim(-0.4, len(disc) - 0.6)
     ax.set_title("Three discovery cohorts,\nequal n per stage\n(z = " + ", ".join(f"{v:.1f}" for v in disc.z) + ")")
-    ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=1)
+    ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.34), ncol=1, fontsize=7.5)
 else: ax.text(0.5, 0.5, "run 15_discovery_sheaf.py", ha="center", transform=ax.transAxes, fontsize=7)
 ax = fig.add_subplot(gs[1, 2]); L.append((ax, "f")); nul = rng.normal(1.905, 0.037, 300); ax.hist(nul, bins=25, color=C["null"]); ax.axvline(0.953, color=C["IS"], lw=1.5); ax.set_xlim(0.85, 2.05); ax.set_xlabel("sheaf energy"); ax.set_ylabel("null draws"); ax.set_title("GTEx, paired organs\nof 253 donors\n(z = −26)"); ax.text(0.953, ax.get_ylim()[1] * 0.98, " observed", color=C["IS"], fontsize=7.5, va="top")
 sub = gs[2, 0].subgridspec(1, 2, wspace=0.45)
@@ -169,7 +169,7 @@ ax.set_ylabel("cross-validated R²", labelpad=2); ax.set_ylim(0, 0.45); ax.set_t
 ax = fig.add_subplot(gs[3, 0]); L.append((ax, "j"))
 for j, (hcol, mk, lab_) in enumerate([("n_basins_h07", "v", "narrow"), ("n_basins_h10", "o", "median"), ("n_basins_h14", "^", "wide")]):
     ax.scatter(np.arange(len(cols)) + (j - 1) * 0.22, [rows[a][hcol] if a in rows else np.nan for a in cols], marker=mk, s=12, color=C["IS"], label=f"{lab_} bandwidth")
-ax.set_xticks(range(len(cols))); ax.set_xticklabels(labs, rotation=50, ha="right", fontsize=7.5); ax.set_ylim(0.5, 3.8); ax.set_yticks([1, 2, 3]); ax.set_ylabel("basins above τ"); ax.set_title("No cohort keeps a second basin"); ax.set_ylim(0.6, 3.5); ax.set_yticks([1, 2, 3]); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.45), fontsize=7, ncol=1, columnspacing=0.7, handletextpad=0.2)
+ax.set_xticks(range(len(cols))); ax.set_xticklabels(labs, rotation=90, ha="center", fontsize=6.8); ax.tick_params(axis="x", pad=1); ax.set_ylim(0.5, 3.8); ax.set_yticks([1, 2, 3]); ax.set_ylabel("basins above τ"); ax.set_title("No cohort keeps a second basin"); ax.set_ylim(0.6, 3.5); ax.set_yticks([1, 2, 3]); ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.45), fontsize=7, ncol=1, columnspacing=0.7, handletextpad=0.2)
 ax = fig.add_subplot(gs[3, 1:]); L.append((ax, "k")); emb = None
 for path in [f"{RES}/replication/GSE50244/GSE50244_embedding_potential.tsv"]:
     if os.path.exists(path): emb = pd.read_csv(path, sep="\t")
@@ -237,24 +237,27 @@ ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.28), ncol=2
 ax.set_title("During insulin there is signal, and it differs by organ: adipose loses magnitude and keeps\ndirection; muscle keeps magnitude and loses direction")
 ax = fig.add_subplot(gs[2, 2]); L.append((ax, "f")); ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(0, 1)
 for i_, (org, rest, resp, fails) in enumerate([("islet", "11 genes (n = 85)", "ex vivo, coherence 0.4–0.9", "not comparable"), ("adipose", "none", "magnitude ↓", "amplitude"), ("muscle", "none", "coherence ↓, clock uncoupled", "coordination")]):
-    y = 0.88 - 0.33 * i_
+    y = 0.90 - 0.325 * i_
     if org == "muscle": ax.add_patch(plt.Rectangle((0, y - 0.26), 1, 0.35, fc="#eef3fb", ec="none", zorder=0))
-    ax.text(0.02, y, org, fontsize=9, color=tcol[org], fontweight="bold", va="center")
-    ax.text(0.02, y - 0.085, f"at rest: {rest}", fontsize=7, va="center"); ax.text(0.02, y - 0.155, f"under perturbation: {resp}", fontsize=7, va="center")
-    if fails != "—": ax.text(0.02, y - 0.225, f"what differs: {fails}", fontsize=7, va="center", style="italic")
+    ax.text(0.02, y, org, fontsize=8.5, color=tcol[org], fontweight="bold", va="center")
+    ax.text(0.02, y - 0.075, f"at rest: {rest}", fontsize=6.0, va="center"); ax.text(0.02, y - 0.130, f"under perturbation: {resp}", fontsize=6.0, va="center")
+    if fails != "—": ax.text(0.02, y - 0.200, f"what differs: {fails}", fontsize=6.6, va="center", style="italic")
 ax.set_title("Muscle is where the response\nfragments and where paired data\nexist in all three states")
 # --- fila 4: la lectura canonica (expresion diferencial en reposo) ---
 if de_sum is not None:
-    ax = fig.add_subplot(gs[3, 0]); L.append((ax, "g")); lab2 = [f"{r.tissue}\n{r.acc}" for r in de_sum.itertuples()]
+    ax = fig.add_subplot(gs[3, 0]); L.append((ax, "g")); lab2 = [r.acc for r in de_sum.itertuples()]
     ax.scatter(range(len(de_sum)), de_sum.n_fdr10, s=80, color=[tcol[t] for t in de_sum.tissue], zorder=3); ax.vlines(range(len(de_sum)), 1, de_sum.n_fdr10.clip(lower=1), color=[tcol[t] for t in de_sum.tissue], lw=2)
-    ax.set_yscale("symlog", linthresh=1); ax.set_ylim(0, 6e4); ax.set_xticks(range(len(de_sum))); ax.set_xticklabels(lab2, fontsize=7, rotation=30, ha="right"); ax.set_ylabel("genes at FDR < 0.1"); ax.set_xlim(-0.65, len(de_sum) - 0.35)
+    ax.set_yscale("symlog", linthresh=1); ax.set_ylim(0, 6e4); ax.set_xticks(range(len(de_sum))); ax.set_xticklabels(lab2, fontsize=6.8, rotation=90, ha="center"); ax.tick_params(axis="x", pad=1); ax.set_ylabel("genes at FDR < 0.1"); ax.set_xlim(-0.65, len(de_sum) - 0.35)
     for i_, r in enumerate(de_sum.itertuples()): ax.text(i_, max(r.n_fdr10, 1) * 2.0, f"{r.n_fdr10:,}", ha="center", fontsize=7.5)
+    from matplotlib.lines import Line2D
+    ax.legend(handles=[Line2D([], [], marker="o", ls="", color=tcol[t], label=t) for t in dict.fromkeys(de_sum.tissue)],
+              frameon=False, fontsize=7, loc="upper right", bbox_to_anchor=(1.0, 1.04), handletextpad=0.2, borderpad=0, ncol=3, columnspacing=0.8)
     ax.set_title("Classical differential expression at rest")
     ax = fig.add_subplot(gs[3, 1:]); L.append((ax, "h"))
     piv = de_set.pivot_table(index="set", columns="acc", values="z"); pp_ = de_set.pivot_table(index="set", columns="acc", values="p")
     order = [c for c in ["GSE164416", "GSE50244", "GSE159984", "GSE25462", "METSIM"] if c in piv.columns]; piv = piv[order]; pp_ = pp_[order]
     im = ax.imshow(piv.values, cmap="RdBu_r", vmin=-4, vmax=4, aspect="auto")
-    ax.set_xticks(range(len(order))); ax.set_xticklabels([f"{de_sum.set_index('acc').tissue[c]}\n{c}" for c in order], fontsize=7.5); ax.tick_params(axis="x", pad=2); ax.set_yticks(range(len(piv))); ax.set_yticklabels(piv.index, fontsize=7.5)
+    ax.set_xticks(range(len(order))); ax.set_xticklabels(list(order), fontsize=6.8, rotation=90, ha="center"); ax.tick_params(axis="x", pad=1); ax.set_yticks(range(len(piv))); ax.set_yticklabels(piv.index, fontsize=7.5)
     for i_ in range(piv.shape[0]):
         for j_ in range(piv.shape[1]):
             if pp_.values[i_, j_] < 0.05: ax.text(j_, i_, "*", ha="center", va="center", fontsize=10, color="w" if abs(piv.values[i_, j_]) > 2.5 else "k")
@@ -283,11 +286,11 @@ if isl is not None:
 fig = plt.figure(figsize=(W, 6.2)); gs = fig.add_gridspec(2, 3, height_ratios=[1, 1.05], width_ratios=[1.15, 1, 1], left=0.105, right=0.97, top=0.94, bottom=0.08, hspace=0.6, wspace=0.62); L = []
 ax = fig.add_subplot(gs[0, 0]); L.append((ax, "a")); ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(0, 1)
 ax.text(-0.08, 0.9, "GSE182120", fontsize=9.5, fontweight="bold", va="top")
-for k_, t in enumerate(["49 individuals, two laboratories", "24 normal glucose tolerance", "25 type 2 diabetes", "clamp M-value measured in all", "resting biopsy, no perturbation"]): ax.text(-0.08, 0.72 - 0.105 * k_, "· " + t, fontsize=8, va="center")
+for k_, t in enumerate(["49 individuals, two laboratories", "24 normal glucose tolerance", "25 type 2 diabetes", "clamp M-value measured in all", "resting biopsy, no perturbation"]): ax.text(0.02, 0.72 - 0.105 * k_, "· " + t, fontsize=7.6, va="center")
 ax.text(-0.08, 0.1, "model: expression ~ laboratory + age + BMI,\nthen ρ(residual, M-value) genome-wide", fontsize=8, va="center", bbox=dict(boxstyle="round,pad=0.4", fc="#f4f4f4", ec="none"))
 ax.set_title("Design: does the resting muscle\ntranscriptome know how insulin-\nsensitive its owner is?")
 ax = fig.add_subplot(gs[0, 1]); L.append((ax, "b")); p = np.sort(gw.p_M.values); exp = -np.log10((np.arange(len(p)) + 0.5) / len(p)); ax.scatter(exp, -np.log10(p), s=4, color=C["grey"], lw=0); lim = max(exp.max(), (-np.log10(p)).max()); ax.plot([0, lim], [0, lim], "k-", lw=0.9)
-for gname, dx, dy in [("PPARGC1A", 8, 6), ("PDK4", 8, -10), ("TXNIP", -8, 2)]:
+for gname, dx, dy in [("PPARGC1A", 12, 16), ("PDK4", 14, -16), ("TXNIP", -10, 2)]:
     if gname in gw.index:
         xx = -np.log10((gw.p_M.rank().loc[gname] - 0.5) / len(gw)); yy = -np.log10(gw.p_M.loc[gname]); ax.scatter(xx, yy, s=40, color=C["IS"], zorder=3)
         ax.annotate(gname, (xx, yy), fontsize=8, xytext=(dx, dy), textcoords="offset points", ha="right" if dx < 0 else "left")
@@ -403,7 +406,7 @@ sub = gs[4, 0:2].subgridspec(1, 2, wspace=0.55)
 def fate(sfx):
     same = np.sign(prog["mean"]) == np.sign(prog[f"mean_{sfx}"]); strong = prog[f"t_{sfx}"].abs() > 2; return {"kept": (same & strong).mean(), "lost": (~strong).mean(), "inverted": (~same & strong).mean()}
 for k, sfx in enumerate(["IR", "T2D"]):
-    axa = fig.add_subplot(sub[k]); R.alluvial(axa, fate(sfx), "healthy\nprogramme", ["kept", "lost", "inverted"], {"kept": C["IS"], "lost": C["null"], "inverted": C["T2D"]}); axa.text(0.4, 1.06, sfx, transform=axa.transAxes, ha="center", color=C[sfx], fontsize=9.5, fontweight="bold")
+    axa = fig.add_subplot(sub[k]); R.alluvial(axa, fate(sfx), "healthy\nprogramme ", ["kept", "lost", "inverted"], {"kept": C["IS"], "lost": C["null"], "inverted": C["T2D"]}); axa.text(0.4, 1.06, sfx, transform=axa.transAxes, ha="center", color=C[sfx], fontsize=9.5, fontweight="bold")
     if k == 0: L.append((axa, "i"))
 
 if exo is not None:
@@ -475,7 +478,7 @@ ax.axvline(11, color=C["IR"], ls="--", lw=1); ax.axvline(23, color=C["IS"], ls="
 ax.set_xlabel("n per arm"); ax.set_ylabel("detectable Δ coherence\n(80% power, s.d. 0.3)"); ax.set_ylim(0, 0.9); ax.set_title("What the present cohorts could\ndetect: restorations below ~0.25\nwould be missed")
 ax = fig.add_subplot(gs[1, 2]); L.append((ax, "f")); ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(0, 10)
 ax.text(2.9, 9.9, "muscle", ha="center", fontsize=9.5, fontweight="bold", color=C["IS"], va="top"); ax.text(7.9, 9.9, "adipose", ha="center", fontsize=9.5, fontweight="bold", color=C["IR"], va="top")
-ax.text(0.0, 7.0, "healthy", fontsize=8.5, rotation=90, va="center", ha="center"); ax.text(0.0, 2.8, "insulin-\nresistant", fontsize=8.5, rotation=90, va="center", ha="center")
+ax.text(-0.55, 7.0, "healthy", fontsize=8.5, rotation=90, va="center", ha="center"); ax.text(-0.55, 2.8, "insulin-\nresistant", fontsize=8.5, rotation=90, va="center", ha="center")
 for ang in [0.14, 0, -0.14]: ax.add_patch(FancyArrowPatch((1.3, 7.0), (1.3 + 3.2 * np.cos(ang), 7.0 + 2.2 * np.sin(ang)), arrowstyle="->", color=C["IS"], lw=1.4, mutation_scale=9))
 for ang in [1.0, 0.2, -0.9]: ax.add_patch(FancyArrowPatch((1.3, 2.8), (1.3 + 3.2 * np.cos(ang), 2.8 + 2.2 * np.sin(ang)), arrowstyle="->", color=C["IS"], lw=1.4, mutation_scale=9))
 for ang in [0.14, 0, -0.14]: ax.add_patch(FancyArrowPatch((6.3, 7.0), (6.3 + 3.2 * np.cos(ang), 7.0 + 2.2 * np.sin(ang)), arrowstyle="->", color=C["IR"], lw=1.4, mutation_scale=9))

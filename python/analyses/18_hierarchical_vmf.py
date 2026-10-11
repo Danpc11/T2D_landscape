@@ -93,53 +93,84 @@ for acc, tissue, subjcol, tcol, basal, tp in [("GSE202295", "muscle", "from_titl
         if len(Dx) >= 5:
             collect(acc, tissue, "exercise", np.array(Dx), gx, {"T2D"}); print(f"  {acc}: {len(Dx)} participantes")
     except FileNotFoundError as ex: print("  (omitido)", acc, ex)
+# --- GSE13070: la mayor cohorte de clamp disponible (Sears 2009), 68 pares basales ---
+try:
+    mm = {}; tb = []; intab = False
+    with gzip.open(f"{RAW}/GSE13070_series_matrix.txt.gz", "rt", errors="ignore") as fh:
+        for l in fh:
+            if l.startswith("!series_matrix_table_begin"): intab = True; continue
+            if l.startswith("!series_matrix_table_end"): break
+            if intab: tb.append(l.rstrip("\n").split("\t")); continue
+            for k2, t2 in [("gsm", "!Sample_geo_accession"), ("title", "!Sample_title")]:
+                if l.startswith(t2) and k2 not in mm: mm[k2] = [x.strip('"') for x in l.rstrip().split("\t")[1:]]
+    q = pd.DataFrame(mm)
+    q["tissue"] = q.title.str.split("_").str[0]
+    q["tzd"] = np.where(q.title.str.contains("postTZD"), "post", "pre")
+    q["clamp"] = np.where(q.title.str.contains("postClamp"), "post", np.where(q.title.str.contains("preClamp"), "pre", None))
+    q["subj"] = q.title.str.extract(r"_s(\d+)$")[0]; q["grp"] = q.title.str.extract(r"_(NRd|IRd\+|IRd-|IRd)_s")[0]
+    ee = pd.DataFrame(tb[1:], columns=[c.strip('"') for c in tb[0]]).set_index(tb[0][0].strip('"'))
+    ee.index = [i.strip('"') for i in ee.index]; ee = ee.apply(pd.to_numeric, errors="coerce").dropna()
+    # los valores se depositan en escala LINEAL: hay que pasar a log2 antes del encaje
+    q = q[(q.tissue == "muscle") & q.tzd.eq("pre") & q.gsm.isin(ee.columns)]
+    Xg = np.log2(ee[q.gsm].clip(lower=1) + 1); Xg = Xg[(Xg > np.percentile(Xg.values, 30)).mean(axis=1) > 0.5]
+    Zg = R.embed(Xg); Zg.index = q.gsm.values
+    Dg, gg = [], []
+    for s2 in q.subj.unique():
+        a2 = q[(q.subj == s2) & (q.clamp == "pre")]; b2 = q[(q.subj == s2) & (q.clamp == "post")]
+        if len(a2) and len(b2):
+            Dg.append(Zg.loc[b2.gsm.iloc[0]].values - Zg.loc[a2.gsm.iloc[0]].values); gg.append(q[q.subj == s2].grp.iloc[0])
+    if len(Dg) >= 10:
+        collect("GSE13070", "muscle", "insulin", np.array(Dg), gg, {"IRd", "IRd+", "IRd-"})
+        print(f"  GSE13070: {len(Dg)} participantes")
+except FileNotFoundError as ex: print("  (omitido) GSE13070:", ex)
 df = pd.DataFrame(rows); df.to_csv(f"{OUT}/pooled_directions.tsv", sep="\t", index=False)
 print(f"\ntotal: {len(df)} participantes, {df.dataset.nunique()} cohortes")
 
 # ---------------- modelo jerarquico ----------------
 UCOLS = [c for c in df.columns if c.startswith("u")]
 def logC(k, d): return (d / 2 - 1) * np.log(k) - (d / 2) * np.log(2 * np.pi) - np.log(special.ive(d / 2 - 1, k)) - k
-def fit(df, with_effect=True, with_interaction=False, joint=True, iters=25):
-    """Ajuste conjunto de las direcciones medias por cohorte y de la concentracion.
+def cells_of(df):
+    """Resume cada combinacion cohorte x grupo por su Rbar CORREGIDO por tamano de muestra.
 
-    log kappa = b0 + b_cohorte + b1*deterioro + b2*(deterioro x ejercicio).
-
-    La direccion media de maxima verosimilitud de una von Mises-Fisher es el vector resultante
-    normalizado SOLO si todos los individuos comparten kappa. Aqui kappa varia dentro de cada
-    cohorte segun el deterioro, de modo que el estimador conjunto de mu es la media PONDERADA por
-    kappa. Se resuelve alternando: dadas las kappa actuales se recalculan las mu ponderadas, y
-    dadas las mu se reoptimizan los coeficientes, hasta convergencia. joint=False reproduce el
-    estimador en dos pasos (mu fijada al resultante no ponderado) y se conserva para comparacion.
+    El sesgo de Rbar depende de n (ver response.kappa_mle). Como el grupo de referencia es el
+    pequeno en todas las cohortes, usar Rbar crudo inflaria su concentracion y por tanto el
+    efecto estimado. La verosimilitud se evalua sobre el Rbar insesgado.
     """
-    ds = sorted(df.dataset.unique()); d = len(UCOLS)
     U = df[UCOLS].to_numpy(); imp = df.impaired.to_numpy(float); exo = (df.stimulus == "exercise").to_numpy(float)
-    dsv = np.array([ds.index(x) for x in df.dataset])
-    mus = np.array([(lambda m: m / np.linalg.norm(m))(U[dsv == i].sum(0)) for i in range(len(ds))])
-    def nll(par, mus=None):
-        cos = np.einsum("ij,ij->i", U, mus[dsv])
+    ds = sorted(df.dataset.unique()); dsv = np.array([ds.index(x) for x in df.dataset])
+    out = []
+    for i in range(len(ds)):
+        for g in (0, 1):
+            sel = (dsv == i) & (imp == g)
+            n = int(sel.sum())
+            if n < 4: continue
+            Rb = np.linalg.norm(U[sel].sum(0)) / n
+            Rc = np.sqrt(max((Rb ** 2 * n - 1) / (n - 1), 1e-9))
+            out.append(dict(dataset=ds[i], impaired=g, exercise=float(exo[sel][0]), n=n, Rbar=Rb, Rbar_corrected=Rc))
+    return pd.DataFrame(out), ds
+
+def fit(df, with_effect=True, with_interaction=False):
+    """log kappa = b0 + b_cohorte + b1*deterioro + b2*(deterioro x ejercicio), ajustado sobre los
+    Rbar corregidos de cada celda. Cada cohorte conserva su propia direccion media, que entra en
+    el resumen por celda, de modo que no hay que estimarla aparte."""
+    cells, ds = cells_of(df); d = len(UCOLS)
+    idx = {k: i for i, k in enumerate(ds)}
+    def nll(par):
         b0 = par[0]; bd = np.r_[0.0, par[1:len(ds)]]
         b1 = par[len(ds)] if with_effect else 0.0
         b2 = par[len(ds) + 1] if with_interaction else 0.0
-        k = np.exp(np.clip(b0 + bd[dsv] + b1 * imp + b2 * imp * exo, -5, 6))
-        return -np.sum(logC(k, d) + k * cos)
-    x0 = np.r_[np.log(4.0), np.zeros(len(ds) - 1)]
+        s = 0.0
+        for r in cells.itertuples():
+            k = np.exp(np.clip(b0 + bd[idx[r.dataset]] + b1 * r.impaired + b2 * r.impaired * r.exercise, -5, 6))
+            s -= r.n * (logC(k, d) + k * r.Rbar_corrected)
+        return s
+    x0 = np.r_[np.log(3.0), np.zeros(len(ds) - 1)]
     if with_effect: x0 = np.r_[x0, -0.5]
     if with_interaction: x0 = np.r_[x0, 0.5]
-    opt = dict(maxiter=40000, xatol=1e-9, fatol=1e-9)
-    r = optimize.minimize(lambda p: nll(p, mus), x0, method="Nelder-Mead", options=opt)
-    if joint:
-        for _ in range(iters):
-            b0 = r.x[0]; bd = np.r_[0.0, r.x[1:len(ds)]]
-            b1 = r.x[len(ds)] if with_effect else 0.0
-            b2 = r.x[len(ds) + 1] if with_interaction else 0.0
-            k = np.exp(np.clip(b0 + bd[dsv] + b1 * imp + b2 * imp * exo, -5, 6))
-            mus = np.array([(lambda m: m / np.linalg.norm(m))((U[dsv == i] * k[dsv == i, None]).sum(0)) for i in range(len(ds))])
-            r2 = optimize.minimize(lambda p: nll(p, mus), r.x, method="Nelder-Mead", options=opt)
-            if abs(r2.fun - r.fun) < 1e-8: r = r2; break
-            r = r2
-    return r, ds
+    return optimize.minimize(nll, x0, method="Nelder-Mead", options=dict(maxiter=40000, xatol=1e-10, fatol=1e-10)), ds
+
 r0, ds = fit(df, False, False); r1, _ = fit(df, True, False)
-has_ex = bool((df.stimulus == "exercise").any())
+has_ex = bool((df.stimulus == 'exercise').any())
 r2 = fit(df, True, True)[0] if has_ex else None
 main = r2 if has_ex else r1
 b1 = float(main.x[len(ds)]); b2 = float(main.x[len(ds) + 1]) if has_ex else np.nan
