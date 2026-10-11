@@ -18,21 +18,11 @@ README.md               this file
 THEORY.md               framework and formal definitions behind the measures (sheaf coherence, landscape, response geometry)
 CHANGES.md              changelog
 docs/
-  MANUSCRIPT.md             manuscript draft (Nature Metabolism, Analysis)
-  DRAFT_CellMetab_format.md earlier draft in Cell Press format (Highlights, eTOC, STAR Methods)
-  FIGURE_PLAN.md            what each figure claims and which panels prove it
-  FIGURE_LEGENDS.md         legend for every figure, panel by panel
   AUDIT.md                  every claim re-tested: survives, weakened or withdrawn
   REPLICATION.md            every cohort analysed and its verdict
-  TARGETS.md                gene-level exploration and candidate targets
-  REVIEW_RESPONSE.md        status of every point raised in the editorial review
-  ROADMAP.md, THEORY_RESULTS.md, DRAFT_STORY.md
+  THEORY_RESULTS.md         results of the theoretical framework, with replication status
 run_all.sh              discovery pipeline (R networks + python/sheaf_coherence.py + python/landscape.py)
 run_replication.sh      every other analysis in the paper, in order (python/analyses/01–18)
-docs/MANUSCRIPT_Diabetologia.md   manuscript as submitted
-docs/submission/        checklist and supplementary methods
-figures_paper/          Figs 1-5 and ESM Fig. 1 as vector PDF
-python/figures/         paper_style.py and make_paper_figures.py
 requirements.txt        pinned Python versions used to produce the published numbers
                         (scanpy, igraph and leidenalg are needed only by step 19a)
 renv_packages.txt       R packages used by run_all.sh
@@ -104,21 +94,21 @@ paired biopsies), not correlations between tissues of post-mortem donors.
 
 ## Status
 
-Manuscript in `docs/MANUSCRIPT.md` (Article format), supplementary notes in `docs/SUPPLEMENTARY.md`,
-figure legends in `docs/FIGURE_LEGENDS.md`.
+This repository holds the analysis code and intermediate results. The manuscript, its figures and the
+supplementary material are kept outside it.
 
-What the central claim rests on, stated plainly. The insulin contrast comes from one cohort, GSE22309
-(2007, n = 20/20/15), in which hybridisation batch is unevenly distributed; the primary analysis is
-therefore restricted to the 35 individuals whose two biopsies were processed in the same run, where
-the effect is undiminished and the batch-only control is null. The specificity to insulin is estimated
-jointly over 140 participants from four cohorts. Components of the result replicate in GSE9105,
-GSE157988, GSE182117 and GSE182120. A modern sequenced clamp cohort with paired biopsies would settle
-the main contrast and does not currently exist in public repositories: the deposited samples of the
-largest recent clamp study are fasted only.
+The primary analysis is the shared individual axis between skeletal muscle and subcutaneous adipose
+tissue (`21_crosstissue_axis.py`, `22_meta_and_validation.py`). What it rests on, stated plainly:
+232 individuals with both tissues in AAGMEx, replicated in 28 women (GSE41168) and compared with 647
+GTEx donors, with set-level significance judged against two null models — one matched for size, one
+matched additionally for expression level and variability. Both values are reported; they disagree for
+the glucocorticoid and insulin sets, and the reason is documented in the header of
+`21_crosstissue_axis.py`.
 
-`docs/AUDIT.md` lists what survives, what is weakened and what was withdrawn; `docs/REVIEW_RESPONSE.md`
-tracks the points raised in editorial review; `docs/EXPLORATION_BIOLOGY.md` records the analyses that
-were tried and did not hold, so they are not repeated.
+The earlier hypothesis, that insulin resistance degrades the coordination of the muscle response to
+insulin, depends entirely on GSE22309 and is retained as exploratory only (see CHANGES.md v2.0).
+
+`docs/AUDIT.md` lists what survives, what is weakened and what was withdrawn.
 
 ## Data and licence
 
