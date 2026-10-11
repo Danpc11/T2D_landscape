@@ -90,3 +90,15 @@ brain_hypothalamus, brain_nucleus_accumbens_basal_ganglia, brain_caudate_basal_g
 brain_putamen_basal_ganglia, brain_cortex, brain_frontal_cortex_ba9, brain_hippocampus,
 breast_mammary_tissue. These are needed only by step 20, which is exploratory; steps 03a–03c and 14
 run with the eleven tissues listed above.
+
+## Cohorts added for the cross-tissue axis analysis (v2.0)
+
+GSE95674_series_matrix.txt.gz   AAGMEx subcutaneous adipose, 256 samples, Illumina HumanHT-12 v4
+GSE95675_series_matrix.txt.gz   AAGMEx skeletal muscle, 255 samples; 232 individuals have both
+GSE41168_series_matrix.txt.gz   28 women with paired muscle and adipose, Affymetrix U133 Plus 2.0
+GSE148640_processed.txt.gz      Hydrocortisone vs placebo in adipose tissue, within-person, n = 10
+
+AAGMEx expression is deposited with gene symbols in the series matrix, so no platform annotation is
+needed. The insulin sensitivity phenotypes of AAGMEx (FSIGT-derived S_I and 23 gluco-metabolic
+measures) are NOT deposited with the expression data; they are reported in the primary publication
+and would have to be requested from the authors.

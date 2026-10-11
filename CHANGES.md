@@ -8,6 +8,28 @@
 
 `20_tissue_coupling_map.py` y `03a` ampliado a 26 tejidos de GTEx (eje digestivo completo, nervio tibial, medula, hipotalamo y seis regiones cerebrales). Pregunta si el intestino y el sistema nervioso participan del estado compartido entre tejidos de una misma persona. No entra en el articulo: tras ajustar por numero de donantes y por similitud de composicion nada alcanza significacion. Lo unico solido es negativo, y conviene conservarlo: el SNC queda consistentemente por debajo de los tejidos perifericos, de modo que el fenomeno no se extiende al cerebro. El script documenta ambos controles porque sin ellos el ranking es espurio.
 
+## v2.0 — el eje individual compartido entre tejidos
+
+Reorientacion del trabajo. La hipotesis de perdida de coordinacion de la respuesta a la insulina
+no se sostuvo (depende por completo de GSE22309: quitandola, b1 pasa de −0.58 a −0.215 y la
+interaccion de *P* = 0.0023 a 0.15; GSE13070 con 68 pares no replica y GSE24215 va en sentido
+contrario). Queda como analisis exploratorio.
+
+El analisis principal pasa a ser la concordancia ENTRE TEJIDOS del mismo individuo:
+
+- **`21_crosstissue_axis.py`**: concordancia gen a gen entre musculo y adiposo en AAGMEx (232
+  individuos), con intervalos por bootstrap SOBRE INDIVIDUOS y dos controles nulos, uno equiparado
+  solo en tamano y otro ademas en expresion media y variabilidad. Red sobre la concordancia y
+  conectividad dentro de cada tejido con el mismo exponente y los mismos participantes.
+- **`22_meta_and_validation.py`**: metaanalisis de efectos aleatorios (DerSimonian-Laird) con I2 y
+  Q, y aplicacion de la puntuacion CONGELADA al reto de hidrocortisona de GSE148640.
+- **El control equiparado cambia la lectura**: solo el componente genetico (*P* = 0.002) y la
+  salida del reloj (0.014) lo superan; glucocorticoides (0.100) y nucleo de insulina (0.116) no.
+  Se reportan ambos valores.
+- **Auditoria de las redes anteriores**: las 24 redes de `all_metrics_combined.tsv` no son
+  comparables entre cohortes (grado medio frente a n: rho = −0.92; frente a beta: −0.79, y ambos
+  difieren entre estudios). No se usan.
+
 ## v1.4 — GSE13070 y correccion del sesgo de kappa
 
 - **Cohorte nueva, la mayor disponible.** GSE13070 (Sears 2009, PNAS 106:18745) aporta 68 pares de clamp basales en musculo, con clamp de cinco horas y grupos definidos por Rd medido. Por si sola NO muestra el contraste (dif de alineamiento −0.04, *P* = 0.81) y su grupo de referencia esta poco concentrado (kappa 1.8 frente a 7.3 en GSE22309). Ni la escala logaritmica ni la normalizacion por cuantiles cambian eso.

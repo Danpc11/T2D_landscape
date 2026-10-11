@@ -29,6 +29,10 @@ docs/
   ROADMAP.md, THEORY_RESULTS.md, DRAFT_STORY.md
 run_all.sh              discovery pipeline (R networks + python/sheaf_coherence.py + python/landscape.py)
 run_replication.sh      every other analysis in the paper, in order (python/analyses/01–18)
+docs/MANUSCRIPT_Diabetologia.md   manuscript as submitted
+docs/submission/        checklist and supplementary methods
+figures_paper/          Figs 1-5 and ESM Fig. 1 as vector PDF
+python/figures/         paper_style.py and make_paper_figures.py
 requirements.txt        pinned Python versions used to produce the published numbers
                         (scanpy, igraph and leidenalg are needed only by step 19a)
 renv_packages.txt       R packages used by run_all.sh
@@ -45,7 +49,8 @@ python/analyses/        01 cohorts · 02 landscape replication · 03a-c GTEx · 
                         14 sheaf across organ sets (specificity control) · 15 discovery sheaf by stage ·
                         16 per-person alignment (primary analysis) · 17 von Mises-Fisher model ·
                         18 hierarchical vMF across cohorts · 19a cell-type signature from scRNA-seq ·
-                        19 tissue versus cell (composition and myotubes) ·
+                        19 tissue versus cell · 20 tissue coupling map ·
+                        21 cross-tissue axis (primary analysis) · 22 meta-analysis and validation ·
                         20 tissue coupling map (exploratory, not used in the manuscript)
 python/simulation/      synthetic validations and power
 data/README.md          every input file and where to download it
