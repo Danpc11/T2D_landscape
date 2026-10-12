@@ -49,14 +49,9 @@ from scipy.spatial.distance import squareform
 RAW = os.environ.get("T2D_RAW", "data/raw"); OUT = os.environ.get("T2D_OUT", "results/gtex"); os.makedirs(OUT, exist_ok=True)
 NBOOT = int(os.environ.get("T2D_BOOT", "400")); NPERM = int(os.environ.get("T2D_PERM", "3000"))
 
-SETS = {
-    "Genetic": ["GSTM1", "GSTT1", "ERAP2"],
-    "Clock output": ["DBP", "PER1", "PER2", "PER3", "NR1D1", "NR1D2", "CIART"],
-    "Glucocorticoid": ["FKBP5", "TSC22D3", "ZBTB16", "KLF15", "DDIT4", "SESN1", "GLUL", "SGK1", "CEBPD"],
-    "Insulin core": ["TXNIP", "PDK4", "HK2", "IRS2", "ANGPTL4"],
-    "Oscillator": ["ARNTL", "CLOCK", "CRY1", "CRY2"],
-    "Oxidative": ["PPARGC1A", "NDUFB8", "COX5A", "SDHB", "UQCRC1"],
-}
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../lib"))
+from gene_sets import SETS as _REG
+SETS = {k: v["genes"] for k, v in _REG.items()}   # registro unico: python/lib/gene_sets.py
 
 def read_series(acc):
     meta, tab, intab = {}, [], False
@@ -132,11 +127,43 @@ def within_tissue_connectivity(M, A, beta=6, ntop=4000):
         out[nm] = pd.Series(Adj.sum(1), index=sel)
     return pd.DataFrame(out)
 
+PROBES_U133 = {"FKBP5": "204560_at", "TSC22D3": "207001_x_at", "ZBTB16": "205883_at",
+ "KLF15": "219836_at", "DDIT4": "202887_s_at", "SESN1": "218346_s_at", "GLUL": "200648_s_at",
+ "SGK1": "201739_at", "CEBPD": "203973_s_at", "DBP": "209782_s_at", "PER1": "202861_at",
+ "PER2": "205251_at", "PER3": "1554462_a_at", "NR1D1": "204760_s_at", "NR1D2": "209750_at",
+ "CIART": "229600_at", "TEF": "204018_x_at", "HLF": "204755_x_at", "ARNTL": "209747_at",
+ "CLOCK": "204980_at", "CRY1": "209674_at", "CRY2": "203729_at", "NPAS2": "205125_at",
+ "TXNIP": "201010_s_at", "PDK4": "205960_at", "HK2": "202934_at", "IRS2": "209184_s_at",
+ "ANGPTL4": "221009_s_at", "RRAD": "204802_at", "PPARGC1A": "219195_at", "NDUFA4": "201483_s_at",
+ "NDUFB8": "203189_s_at", "SDHB": "202675_at", "UQCRC1": "201903_at", "COX5A": "203663_s_at",
+ "ATP5F1A": "213738_s_at", "CYCS": "208905_at", "ESRRA": "203193_at", "TFAM": "203177_x_at",
+ "GSTM1": "204550_x_at", "GSTT1": "203815_at", "ERAP2": "219759_at", "HLA-DQA1": "203290_at",
+ "HLA-DRB4": "209728_at"}
+
+def paired_gse41168():
+    """Replicacion independiente: 28 mujeres con musculo y adiposo, Affymetrix U133 Plus 2.0.
+    Los identificadores son sondas, de modo que los conjuntos se traducen con PROBES_U133."""
+    p, e = read_series("GSE41168")
+    e = np.log2(e.clip(lower=1)) if e.values.max() > 60 else e
+    p["s"] = p.title.str.split(",").str[0].str.strip()
+    p["t"] = np.where(p.title.str.upper().str.contains("MUSCLE"), "m", "a")
+    b = p[p.title.str.contains("Before") & p.gsm.isin(e.columns)]
+    mu = b[b.t == "m"].drop_duplicates("s").set_index("s").gsm
+    ad = b[b.t == "a"].drop_duplicates("s").set_index("s").gsm
+    ids = sorted(set(mu.index) & set(ad.index))
+    M = e[[mu[s] for s in ids]]; A = e[[ad[s] for s in ids]]
+    M.columns = ids; A.columns = ids
+    return M, A, ids
+
 if __name__ == "__main__":
     rng = np.random.default_rng(0)
     M, A, ids = paired_aagmex()
     print(f"AAGMEx: {len(ids)} individuos con ambos tejidos, {len(M)} genes comunes")
-    con = concordance(M, A); con.to_frame("r").rename_axis("probe").to_csv(f"{OUT}/live_crosstissue_r.tsv", sep="\t")
+    con = concordance(M, A)
+    out = con.to_frame("r").rename_axis("gene")
+    out.insert(0, "cohort", "AAGMEx"); out.insert(1, "platform", "Illumina HumanHT-12 v4")
+    out.insert(2, "n_individuals", len(ids))
+    out.to_csv(f"{OUT}/crosstissue_concordance_AAGMEx.tsv", sep="\t")
     bg = con.sample(min(3000, len(con)), random_state=0).mean()
     print(f"fondo: {bg:+.3f} | genes con r>0.5: {(con > 0.5).mean()*100:.1f}% | >0.7: {(con > 0.7).mean()*100:.2f}%")
     mu, sd = A.mean(1), A.std(1)
@@ -148,7 +175,9 @@ if __name__ == "__main__":
         null_sz = [con.sample(len(g), random_state=int(rng.integers(1e9))).mean() for _ in range(NPERM)]
         null_mt = [con[matched_null(g, mu, sd, rng, con.index)].mean() for _ in range(min(NPERM, 500))]
         lo, hi, se = boot_ci(M, A, g, ids, rng)
-        rows.append(dict(cohort="AAGMEx", set=nm, n=len(ids), n_genes=len(g), r=obs, lo=lo, hi=hi, se=se,
+        rows.append(dict(cohort="AAGMEx", set=nm, n=len(ids), n_declared=len(gs), n_genes=len(g),
+                         genes_measured="; ".join(g), genes_missing="; ".join(sorted(set(gs) - set(g))),
+                         r=obs, lo=lo, hi=hi, se=se,
                          p_size=(np.sum(np.array(null_sz) >= obs) + 1) / (NPERM + 1),
                          p_matched=(np.sum(np.array(null_mt) >= obs) + 1) / (len(null_mt) + 1)))
         print(f"  {nm:16s} r={obs:+.3f} [{lo:+.3f}, {hi:+.3f}]  p={rows[-1]['p_size']:.4f} (matched {rows[-1]['p_matched']:.4f})")
@@ -163,3 +192,32 @@ if __name__ == "__main__":
         if len(g) < 3: continue
         pa_, pm_ = K.adipose.rank(pct=True)[g].mean(), K.muscle.rank(pct=True)[g].mean()
         print(f"  {nm:16s} adiposo {pa_:.3f} | musculo {pm_:.3f}")
+
+    # ---- replicacion independiente: GSE41168 ----
+    try:
+        M2, A2, ids2 = paired_gse41168()
+        print(f"\nGSE41168: {len(ids2)} mujeres con ambos tejidos")
+        con2 = concordance(M2, A2)
+        out2 = con2.to_frame("r").rename_axis("probe")
+        out2.insert(0, "cohort", "GSE41168"); out2.insert(1, "platform", "Affymetrix U133 Plus 2.0")
+        out2.insert(2, "n_individuals", len(ids2))
+        out2.to_csv(f"{OUT}/crosstissue_concordance_GSE41168.tsv", sep="\t")
+        mu2, sd2 = A2.mean(1), A2.std(1)
+        rows2 = []
+        for nm, gs in SETS.items():
+            g = [PROBES_U133[x] for x in gs if x in PROBES_U133 and PROBES_U133[x] in con2.index]
+            miss = [x for x in gs if x not in PROBES_U133 or PROBES_U133[x] not in con2.index]
+            if len(g) < 3: continue
+            obs = con2[g].mean()
+            null_sz = [con2.sample(len(g), random_state=int(rng.integers(1e9))).mean() for _ in range(NPERM)]
+            null_mt = [con2[matched_null(g, mu2, sd2, rng, con2.index)].mean() for _ in range(min(NPERM, 500))]
+            lo, hi, se = boot_ci(M2, A2, g, ids2, rng)
+            rows2.append(dict(cohort="GSE41168", set=nm, n=len(ids2), n_declared=len(gs), n_genes=len(g),
+                              genes_measured="; ".join(g), genes_missing="; ".join(miss),
+                              r=obs, lo=lo, hi=hi, se=se,
+                              p_size=(np.sum(np.array(null_sz) >= obs) + 1) / (NPERM + 1),
+                              p_matched=(np.sum(np.array(null_mt) >= obs) + 1) / (len(null_mt) + 1)))
+            print(f"  {nm:16s} r={obs:+.3f} [{lo:+.3f}, {hi:+.3f}]  p={rows2[-1]['p_size']:.4f} (matched {rows2[-1]['p_matched']:.4f})")
+        pd.DataFrame(rows2).to_csv(f"{OUT}/ci_GSE41168.tsv", sep="\t", index=False)
+    except FileNotFoundError as ex:
+        print("  (omitida) replicacion GSE41168:", ex)
